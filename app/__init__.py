@@ -34,4 +34,8 @@ def create_app(config_class=Config):
     from .admin import admin_bp
     app.register_blueprint(admin_bp, url_prefix='/admin')
 
+    # Создаём таблицы если их нет
+    with app.app_context():
+        db.create_all()
+
     return app
