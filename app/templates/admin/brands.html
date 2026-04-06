@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="breadcrumb">
+    <a href="{{ url_for('index') }}">Главная</a>
+    <span class="sep">›</span>
+    <span class="current">Бренды</span>
+</div>
+
+<div class="models-header">
+    <h1 style="margin-bottom:0;">Бренды</h1>
+    <a href="{{ url_for('admin.create_brand') }}" class="btn btn-primary">+ Добавить бренд</a>
+</div>
+
+<div class="table-wrap">
+    <table>
+        <thead>
+            <tr>
+                <th><span class="sort-link">Название</span></th>
+                <th><span class="sort-link">Моделей</span></th>
+                <th><span class="sort-link">Действия</span></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for brand in brands %}
+            <tr>
+                <td>
+                    <span class="model-badge">
+                        <span class="model-dot"></span>
+                        <a href="{{ url_for('brand_detail', brand_id=brand.id) }}" style="color:inherit; text-decoration:none;">{{ brand.name }}</a>
+                    </span>
+                </td>
+                <td>
+                    <span class="lot-chip">{{ brand.tv_models|length }}</span>
+                </td>
+                <td>
+                    <div class="actions-cell">
+                        <a href="{{ url_for('admin.edit_brand', brand_id=brand.id) }}" class="btn btn-secondary btn-sm" title="Редактировать">✏️</a>
+                        <button class="btn btn-danger btn-sm"
+                                data-delete-url="{{ url_for('admin.delete_brand', brand_id=brand.id) }}"
+                                onclick="showDeleteModal(this.dataset.deleteUrl, {{ brand.tv_models|length }})"
+                                title="Удалить">🗑</button>
+                    </div>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="3" style="text-align:center; padding:40px; color:var(--muted);">
+                    Брендов пока нет
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div style="margin-top:24px;">
+    <a href="{{ url_for('index') }}" class="btn btn-secondary">← Главная</a>
+</div>
+{% endblock %}
+
+<script>
+function showDeleteModal(url, modelCount) {
+    document.getElementById('deleteForm').action = url;
+    if (modelCount > 0) {
+        document.querySelector('#deleteModal p').innerHTML =
+            'Это действие нельзя отменить.<br>Вместе с брендом будут удалены <strong>' + modelCount + '</strong> ' +
+            (modelCount === 1 ? 'модель' : modelCount < 5 ? 'модели' : 'моделей') + ' и все их файлы.<br>Вы уверены?';
+    } else {
+        document.querySelector('#deleteModal p').innerHTML = 'Это действие нельзя отменить.<br>Вы уверены?';
+    }
+    document.getElementById('deleteModal').style.display = 'block';
+}
+</script>

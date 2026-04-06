@@ -1,0 +1,418 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="breadcrumb">
+    <a href="{{ url_for('index') }}">Главная</a>
+    <span class="sep">›</span>
+    <a href="{{ url_for('brand_detail', brand_id=brand.id) }}">{{ brand.name }}</a>
+    <span class="sep">›</span>
+    <span class="current">{{ launcher.name }}</span>
+</div>
+
+<div class="models-header">
+    <h1 style="margin-bottom:0;">{{ brand.name }} <span style="color:var(--muted); font-weight:400;">—</span> {{ launcher.name }}</h1>
+    <a href="{{ url_for('add_model', prefill_brand=brand.id, prefill_launcher=launcher.id, back_url=request.url) }}" class="btn btn-primary">+ Добавить модель</a>
+</div>
+
+<!-- Поиск -->
+<form method="get" class="local-search-form" style="margin-bottom: 16px;">
+    <input type="hidden" name="sort" value="{{ sort }}">
+    <input type="hidden" name="order" value="{{ order }}">
+    <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+        <div class="search-bar">
+            <span class="search-icon">🔍</span>
+            <input type="text" name="q" value="{{ q }}" placeholder="Поиск по названию модели..." autocomplete="off">
+            {% if q %}<button type="button" class="search-clear" onclick="clearSearch()">✕</button>{% endif %}
+        </div>
+        <button type="submit" class="btn btn-secondary btn-sm">Найти</button>
+    </div>
+</form>
+
+{% if q %}
+<div class="search-results-info">
+    {% if pagination.total == 0 %}
+        Ничего не найдено по запросу «<strong>{{ q }}</strong>»
+    {% else %}
+        Найдено <strong>{{ pagination.total }}</strong> {{ 'модель' if pagination.total == 1 else ('модели' if pagination.total < 5 else 'моделей') }} по запросу «<strong>{{ q }}</strong>»
+    {% endif %}
+</div>
+{% endif %}
+
+{% if models or q %}
+
+<!-- Сортировка -->
+<div class="sort-bar">
+    {% macro sort_link(label, key) %}
+        {% set is_active = sort == key %}
+        {% set next_order = 'asc' if (is_active and order == 'desc') else 'desc' %}
+        <a href="{{ url_for('models_list', brand_id=brand.id, launcher_id=launcher.id, sort=key, order=next_order, q=q) }}"
+           class="sort-chip {% if is_active %}active{% endif %}">
+            {{ label }}
+            {% if is_active %}<span>{{ '↑' if order == 'asc' else '↓' }}</span>{% endif %}
+        </a>
+    {% endmacro %}
+    <span class="sort-label">Сортировка:</span>
+    {{ sort_link('Названию', 'model') }}
+    {{ sort_link('Лоту', 'lot') }}
+    {{ sort_link('Дате', 'date') }}
+</div>
+
+{% if all_tags %}
+<div class="tag-filter-bar">
+    <span class="sort-label">Метки:</span>
+    <a href="{{ url_for('models_list', brand_id=brand.id, launcher_id=launcher.id, sort=sort, order=order, q=q) }}"
+       class="tag-filter-chip {% if not tag_filter %}active{% endif %}">Все</a>
+    {% for tag in all_tags %}
+    <a href="{{ url_for('models_list', brand_id=brand.id, launcher_id=launcher.id, sort=sort, order=order, q=q, tag=tag.id) }}"
+       class="tag-filter-chip {% if tag_filter == tag.id %}active{% endif %}"
+       style="--tag-color: {{ tag.color }};">{{ tag.name }}</a>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- Список карточек -->
+<div class="model-cards">
+    {% for model in models %}
+    <div class="model-card" id="card-{{ model.id }}">
+
+        <!-- Основная строка — кликабельна -->
+        <div class="model-card-row" data-id="{{ model.id }}" onclick="toggleCard(this.dataset.id)">
+            <div class="model-card-main">
+                <span class="model-dot"></span>
+                <span class="model-card-name">{{ model.model }}</span>
+            </div>
+            <div class="model-card-meta">
+                {% if model.tags %}
+                    {% for tag in model.tags %}
+                    <span class="tag-chip" style="--tag-color: {{ tag.color }}; margin-right: 8px;">{{ tag.name }}</span>
+                    {% endfor %}
+                {% endif %}
+                {% if model.software_version %}
+                    <span class="model-card-sw">💿 {{ model.software_version }}</span>
+                {% endif %}
+                {% if model.is_flashable %}
+                    <span class="flash-pill yes">⚡ Прошивается</span>
+                {% else %}
+                    <span class="flash-pill no">✕ Не прошивается</span>
+                {% endif %}
+                <span class="lot-chip">{{ model.lot }}</span>
+            </div>
+            <div class="model-card-chevron" id="chevron-{{ model.id }}">›</div>
+        </div>
+
+        <!-- Раскрывающаяся панель -->
+        <div class="model-card-panel" id="panel-{{ model.id }}">
+            <div class="model-card-details">
+                <div class="mcd-item">
+                    <span class="mcd-label">Пульт</span>
+                    <span class="mcd-value">{{ model.remote_control or '—' }}</span>
+                </div>
+                <div class="mcd-item">
+                    <span class="mcd-label">Тестировщик</span>
+                    <span class="mcd-value">
+                        {% if model.tester_name %}<span class="tester-mini">{{ model.tester_name }}</span>{% else %}—{% endif %}
+                    </span>
+                </div>
+                <div class="mcd-item">
+                    <span class="mcd-label">Версия ПО</span>
+                    <span class="mcd-value">{{ model.software_version or '—' }}</span>
+                </div>
+                <div class="mcd-item">
+                    <span class="mcd-label">Добавлено</span>
+                    <span class="mcd-value" style="color:var(--text2);">{{ model.date_added.strftime('%d.%m.%Y') }}</span>
+                </div>
+                {% if model.specifications %}
+                <div class="mcd-item mcd-full">
+                    <span class="mcd-label">Характеристики</span>
+                    <span class="mcd-value" style="white-space:pre-line;">{{ model.specifications }}</span>
+                </div>
+                {% endif %}
+            </div>
+            <div class="model-card-actions">
+                <a href="{{ url_for('view_model', id=model.id, back_url=request.url) }}"
+                   class="btn btn-secondary btn-sm">👁 Просмотр</a>
+                <a href="{{ url_for('edit_model', id=model.id, back_url=request.url) }}"
+                   class="btn btn-secondary btn-sm">✏️ Редактировать</a>
+                <a href="{{ url_for('duplicate_model', id=model.id) }}"
+                   class="btn btn-secondary btn-sm">⧉ Дублировать</a>
+                <button class="btn btn-danger btn-sm"
+                        data-delete-url="{{ url_for('delete_model', id=model.id) }}"
+                        onclick="showDeleteModal(this.dataset.deleteUrl)">🗑 Удалить</button>
+            </div>
+        </div>
+
+    </div>
+    {% endfor %}
+
+    {% if not models and q %}
+    <div class="empty-state">
+        <span class="empty-icon">🔍</span>
+        <p>Ничего не найдено</p>
+    </div>
+    {% endif %}
+</div>
+
+{% if pagination.pages > 1 %}
+<div class="pagination">
+    {% if pagination.has_prev %}
+        <a href="{{ url_for('models_list', brand_id=brand.id, launcher_id=launcher.id, sort=sort, order=order, q=q, page=pagination.prev_num) }}" class="page-link">←</a>
+    {% endif %}
+    {% for p in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+        {% if p %}
+            {% if p == pagination.page %}<span class="page-current">{{ p }}</span>
+            {% else %}<a href="{{ url_for('models_list', brand_id=brand.id, launcher_id=launcher.id, sort=sort, order=order, q=q, page=p) }}" class="page-link">{{ p }}</a>{% endif %}
+        {% else %}<span style="padding:8px 4px; color:var(--muted);">…</span>{% endif %}
+    {% endfor %}
+    {% if pagination.has_next %}
+        <a href="{{ url_for('models_list', brand_id=brand.id, launcher_id=launcher.id, sort=sort, order=order, q=q, page=pagination.next_num) }}" class="page-link">→</a>
+    {% endif %}
+</div>
+{% endif %}
+
+{% else %}
+<div class="empty-state">
+    <span class="empty-icon">📭</span>
+    <p>Моделей пока нет</p>
+    <a href="{{ url_for('add_model') }}" class="btn btn-primary">+ Добавить первую</a>
+</div>
+{% endif %}
+
+<div style="margin-top: 32px;">
+    <a href="{{ url_for('brand_detail', brand_id=brand.id) }}" class="btn btn-secondary">← Назад к лаунчерам</a>
+</div>
+
+<style>
+    /* ── СОРТИРОВКА ── */
+    .sort-bar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 14px;
+        flex-wrap: wrap;
+    }
+    .sort-label {
+        font-size: 0.72rem;
+        font-weight: 700;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        margin-right: 4px;
+    }
+    .sort-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 0.78rem;
+        font-weight: 500;
+        color: var(--text2);
+        background: var(--surface);
+        border: 1px solid var(--border);
+        text-decoration: none;
+        transition: all 0.2s;
+    }
+    .sort-chip:hover { color: var(--text); border-color: var(--accent); }
+    .sort-chip.active {
+        background: rgba(91,141,238,0.12);
+        color: var(--accent);
+        border-color: rgba(91,141,238,0.35);
+    }
+
+    /* ── КАРТОЧКИ МОДЕЛЕЙ ── */
+    .model-cards {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .model-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        overflow: hidden;
+        transition: border-color 0.2s;
+    }
+
+    .model-card:hover { border-color: rgba(91,141,238,0.3); }
+    .model-card.open  { border-color: rgba(91,141,238,0.5); }
+
+    /* Основная строка */
+    .model-card-row {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 14px 20px;
+        cursor: pointer;
+        user-select: none;
+        transition: background 0.15s;
+    }
+    .model-card-row:hover { background: rgba(91,141,238,0.04); }
+
+    .model-card-main {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex: 1;
+        min-width: 0;
+    }
+
+    .model-card-name {
+        font-family: 'Syne', sans-serif;
+        font-weight: 600;
+        font-size: 0.95rem;
+        color: var(--text);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .model-card-meta {
+        display: flex;
+        align-items: center;
+        gap: 0;
+        flex-shrink: 0;
+    }
+
+    .model-card-sw {
+        font-size: 0.78rem;
+        color: var(--text2);
+        min-width: 140px;
+        text-align: right;
+        padding-right: 16px;
+    }
+
+    /* Фиксируем ширину pill прошивки чтобы строки выравнивались */
+    .model-card-meta .flash-pill {
+        min-width: 130px;
+        justify-content: center;
+        margin-right: 16px;
+    }
+
+    .model-card-meta .lot-chip {
+        min-width: 60px;
+        justify-content: center;
+        margin-right: 8px;
+    }
+
+    .model-card-chevron {
+        color: var(--muted);
+        font-size: 1.1rem;
+        transition: transform 0.25s cubic-bezier(0.34,1.56,0.64,1);
+        flex-shrink: 0;
+        line-height: 1;
+    }
+    .model-card.open .model-card-chevron { transform: rotate(90deg); }
+
+    /* Раскрывающаяся панель */
+    .model-card-panel {
+        display: none;
+        border-top: 1px solid var(--border);
+        padding: 16px 20px;
+        background: var(--surface2);
+        animation: panelIn 0.2s ease both;
+    }
+    .model-card.open .model-card-panel { display: block; }
+
+    @keyframes panelIn {
+        from { opacity: 0; transform: translateY(-6px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Детали в панели */
+    .model-card-details {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+        gap: 12px;
+        margin-bottom: 16px;
+    }
+
+    .mcd-item { display: flex; flex-direction: column; gap: 3px; }
+    .mcd-full { grid-column: 1 / -1; }
+
+    .mcd-label {
+        font-size: 0.65rem;
+        font-weight: 700;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+    }
+    .mcd-value { font-size: 0.88rem; color: var(--text); }
+
+    /* Кнопки действий */
+    .model-card-actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        padding-top: 14px;
+        border-top: 1px solid var(--border);
+        align-items: center;
+    }
+
+    .mcd-tags {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        flex: 1;
+    }
+
+    /* Теги — общие стили */
+    .tag-chip {
+        display: inline-flex;
+        align-items: center;
+        padding: 3px 10px;
+        border-radius: 20px;
+        font-size: 0.74rem;
+        font-weight: 600;
+        background: color-mix(in srgb, var(--tag-color) 15%, transparent);
+        color: var(--tag-color);
+        border: 1px solid color-mix(in srgb, var(--tag-color) 35%, transparent);
+        white-space: nowrap;
+    }
+
+    /* Фильтр по тегам */
+    .tag-filter-bar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 14px;
+        flex-wrap: wrap;
+    }
+
+    .tag-filter-chip {
+        display: inline-flex;
+        align-items: center;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 0.78rem;
+        font-weight: 500;
+        text-decoration: none;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        color: var(--text2);
+        transition: all 0.2s;
+    }
+    .tag-filter-chip:hover {
+        border-color: var(--tag-color, var(--accent));
+        color: var(--tag-color, var(--accent));
+    }
+    .tag-filter-chip.active {
+        background: color-mix(in srgb, var(--tag-color, var(--accent)) 15%, transparent);
+        color: var(--tag-color, var(--accent));
+        border-color: color-mix(in srgb, var(--tag-color, var(--accent)) 40%, transparent);
+    }
+</style>
+
+<script>
+function toggleCard(id) {
+    const card = document.getElementById('card-' + id);
+    card.classList.toggle('open');
+}
+
+function clearSearch() {
+    const url = new URL(window.location.href);
+    url.searchParams.delete('q');
+    url.searchParams.delete('page');
+    window.location.href = url.toString();
+}
+</script>
+{% endblock %}

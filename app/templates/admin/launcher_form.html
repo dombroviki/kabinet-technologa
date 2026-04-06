@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="breadcrumb">
+    <a href="{{ url_for('index') }}">Главная</a>
+    <span class="sep">›</span>
+    <a href="{{ url_for('admin.launchers') }}">Лаунчеры</a>
+    <span class="sep">›</span>
+    <span class="current">{% if action == 'create' %}Новый лаунчер{% else %}Редактирование{% endif %}</span>
+</div>
+
+<h1>{% if action == 'create' %}Новый тип лаунчера{% else %}Редактирование: {{ launcher.name }}{% endif %}</h1>
+
+<div class="form-card" style="max-width:480px;">
+    <form method="POST">
+        <div class="form-group">
+            <label for="name">Название лаунчера *</label>
+            <input type="text" id="name" name="name"
+                   value="{{ launcher.name if launcher else '' }}"
+                   placeholder="например: Android TV" required autofocus>
+        </div>
+        <div class="form-actions">
+            <button type="submit">💾 {% if action == 'create' %}Создать{% else %}Сохранить{% endif %}</button>
+            <a href="{{ url_for('admin.launchers') }}" class="cancel-link">Отмена</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="breadcrumb">
+    <a href="{{ url_for('index') }}">Главная</a>
+    <span class="sep">›</span>
+    <a href="{{ url_for('admin.tags') }}">Метки</a>
+    <span class="sep">›</span>
+    <span class="current">{% if action == 'create' %}Новая метка{% else %}Редактирование{% endif %}</span>
+</div>
+
+<h1>{% if action == 'create' %}Новая метка{% else %}Редактирование: {{ tag.name }}{% endif %}</h1>
+
+<div class="form-card" style="max-width:480px;">
+    <form method="POST">
+        <div class="form-group">
+            <label for="name">Название метки *</label>
+            <input type="text" id="name" name="name"
+                   value="{{ tag.name if tag else '' }}"
+                   placeholder="например: QR-код" required autofocus>
+        </div>
+
+        <div class="form-group">
+            <label>Цвет</label>
+            <div class="color-picker">
+                {% for color, label in colors %}
+                <label class="color-pick-item" title="{{ label }}">
+                    <input type="radio" name="color" value="{{ color }}"
+                           {% if (tag and tag.color == color) or (not tag and loop.first) %}checked{% endif %}>
+                    <span class="color-swatch" style="background: {{ color }};"></span>
+                </label>
+                {% endfor %}
+            </div>
+            {% if tag %}
+            <div style="margin-top:10px; font-size:0.82rem; color:var(--text2);">
+                Текущий цвет: <span class="tag-chip" style="--tag-color: {{ tag.color }};">{{ tag.name }}</span>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="form-actions">
+            <button type="submit">💾 {% if action == 'create' %}Создать{% else %}Сохранить{% endif %}</button>
+            <a href="{{ url_for('admin.tags') }}" class="cancel-link">Отмена</a>
+        </div>
+    </form>
+</div>
+
+<style>
+.color-picker { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+.color-pick-item { cursor: pointer; }
+.color-pick-item input[type=radio] { display: none; }
+.color-swatch {
+    display: block; width: 32px; height: 32px;
+    border-radius: 50%; border: 3px solid transparent;
+    transition: all 0.15s; cursor: pointer;
+}
+.color-pick-item input:checked + .color-swatch {
+    border-color: var(--text); transform: scale(1.15);
+    box-shadow: 0 0 0 2px var(--bg);
+}
+.color-swatch:hover { transform: scale(1.1); }
+.tag-chip {
+    display: inline-flex; align-items: center;
+    padding: 3px 10px; border-radius: 20px;
+    font-size: 0.78rem; font-weight: 600;
+    background: color-mix(in srgb, var(--tag-color) 15%, transparent);
+    color: var(--tag-color);
+    border: 1px solid color-mix(in srgb, var(--tag-color) 35%, transparent);
+}
+</style>
+{% endblock %}

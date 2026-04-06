@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="breadcrumb">
+    <a href="{{ url_for('index') }}">Главная</a>
+    <span class="sep">›</span>
+    <span class="current">Поиск</span>
+</div>
+
+<h1>Поиск</h1>
+
+<form action="{{ url_for('search') }}" method="get" style="margin-bottom: 24px;">
+    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+        <div class="search-bar" style="max-width:480px; flex:1;">
+            <span class="search-icon">🔍</span>
+            <input type="text" name="q" value="{{ q }}"
+                   placeholder="Модель, лот, бренд, тестировщик, версия ПО..."
+                   autocomplete="off" autofocus>
+            {% if q %}<button type="button" class="search-clear" onclick="clearSearch()">✕</button>{% endif %}
+        </div>
+        <button type="submit" class="btn btn-primary">Найти</button>
+    </div>
+</form>
+
+{% if q %}
+    <div class="search-results-info" style="margin-bottom:20px;">
+        {% if results %}
+            Найдено <strong>{{ results|length }}</strong>
+            {{ 'результат' if results|length == 1 else ('результата' if results|length < 5 else 'результатов') }}
+            по запросу «<strong>{{ q }}</strong>»
+        {% else %}
+            Ничего не найдено по запросу «<strong>{{ q }}</strong>»
+        {% endif %}
+    </div>
+
+    {% if results %}
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th><span class="sort-link">Модель</span></th>
+                    <th><span class="sort-link">Бренд</span></th>
+                    <th><span class="sort-link">Лаунчер</span></th>
+                    <th><span class="sort-link">Лот</span></th>
+                    <th><span class="sort-link">Версия ПО</span></th>
+                    <th><span class="sort-link">Тестировщик</span></th>
+                    <th><span class="sort-link">Добавлено</span></th>
+                    <th><span class="sort-link">Действия</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for model in results %}
+                <tr>
+                    <td><span class="model-badge"><span class="model-dot"></span>{{ model.model }}</span></td>
+                    <td class="date-text">{{ model.brand.name }}</td>
+                    <td class="date-text">{{ model.launcher_type.name }}</td>
+                    <td><span class="lot-chip">{{ model.lot }}</span></td>
+                    <td class="date-text">{{ model.software_version or '—' }}</td>
+                    <td>
+                        {% if model.tester_name %}
+                            <span class="tester-mini">{{ model.tester_name }}</span>
+                        {% else %}
+                            <span style="color:var(--muted);">—</span>
+                        {% endif %}
+                    </td>
+                    <td class="date-text">{{ model.date_added.strftime('%d.%m.%Y') }}</td>
+                    <td>
+                        <div class="actions-cell">
+                            <a href="{{ url_for('view_model', id=model.id) }}" class="btn btn-secondary btn-sm" title="Просмотр">👁</a>
+                            <a href="{{ url_for('edit_model', id=model.id) }}" class="btn btn-secondary btn-sm" title="Редактировать">✏️</a>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <span class="empty-icon">🔍</span>
+        <p>Попробуйте изменить запрос</p>
+    </div>
+    {% endif %}
+{% else %}
+    <div class="empty-state">
+        <span class="empty-icon">🔍</span>
+        <p>Введите запрос для поиска по всей базе</p>
+        <p style="font-size:0.82rem; color:var(--muted); margin-top:8px;">Поиск по модели, лоту, бренду, тестировщику, версии ПО, пульту</p>
+    </div>
+{% endif %}
+
+<script>
+function clearSearch() {
+    window.location.href = '{{ url_for("search") }}';
+}
+</script>
+{% endblock %}

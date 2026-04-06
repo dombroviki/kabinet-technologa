@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="breadcrumb">
+    <a href="{{ url_for('index') }}">Главная</a>
+    <span class="sep">›</span>
+    <a href="{{ url_for('admin.remotes') }}">Пульты</a>
+    <span class="sep">›</span>
+    <span class="current">{% if action == 'create' %}Новый пульт{% else %}Редактирование{% endif %}</span>
+</div>
+
+<h1>{% if action == 'create' %}Новый пульт{% else %}Редактирование: {{ remote.name }}{% endif %}</h1>
+
+<div class="form-card" style="max-width:480px;">
+    <form method="POST">
+        <div class="form-group">
+            <label for="name">Название пульта *</label>
+            <input type="text" id="name" name="name"
+                   value="{{ remote.name if remote else '' }}"
+                   placeholder="например: JKT" required autofocus>
+        </div>
+        <div class="form-actions">
+            <button type="submit">💾 {% if action == 'create' %}Создать{% else %}Сохранить{% endif %}</button>
+            <a href="{{ url_for('admin.remotes') }}" class="cancel-link">Отмена</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

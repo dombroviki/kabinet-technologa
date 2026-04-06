@@ -1,0 +1,253 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="breadcrumb">
+    <a href="{{ url_for('index') }}">Главная</a>
+    {% if prefill_brand_obj %}
+        <span class="sep">›</span>
+        <a href="{{ url_for('brand_detail', brand_id=prefill_brand_obj.id) }}">{{ prefill_brand_obj.name }}</a>
+    {% endif %}
+    {% if prefill_launcher_obj and prefill_brand_obj %}
+        <span class="sep">›</span>
+        <a href="{{ back_url or url_for('models_list', brand_id=prefill_brand_obj.id, launcher_id=prefill_launcher_obj.id) }}">{{ prefill_launcher_obj.name }}</a>
+    {% endif %}
+    <span class="sep">›</span>
+    <span class="current">Добавление модели</span>
+</div>
+
+<h1>Добавление модели</h1>
+
+<div class="form-card">
+    <form method="POST" enctype="multipart/form-data">
+        <input type="hidden" name="back_url" value="{{ back_url }}">
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="brand_id">Бренд *</label>
+                <select id="brand_id" name="brand_id" required>
+                    <option value="">— Выберите бренд —</option>
+                    {% for brand in brands %}
+                        <option value="{{ brand.id }}" {% if prefill and prefill.brand_id == brand.id|string %}selected{% endif %}>{{ brand.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="launcher_type_id">Тип лаунчера *</label>
+                <select id="launcher_type_id" name="launcher_type_id" required>
+                    <option value="">— Выберите лаунчер —</option>
+                    {% for launcher in launcher_types %}
+                        <option value="{{ launcher.id }}" {% if prefill and prefill.launcher_id == launcher.id|string %}selected{% endif %}>{{ launcher.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="model">Модель *</label>
+                <input type="text" id="model" name="model" value="{{ prefill.model if prefill else '' }}" placeholder="например: UE55AU7100" required>
+            </div>
+            <div class="form-group">
+                <label for="lot">Лот *</label>
+                <input type="text" id="lot" name="lot" value="{{ prefill.lot if prefill else '' }}" placeholder="например: 2025-A" required>
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="remote_control">Пульт</label>
+                <select id="remote_control" name="remote_control">
+                    <option value="">— Не выбрано —</option>
+                    {% for r in remotes %}
+                        <option value="{{ r.name }}" {% if prefill and prefill.remote == r.name %}selected{% endif %}>{{ r.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="software_version">Версия ПО</label>
+                <input type="text" id="software_version" name="software_version" value="{{ prefill.sw_version if prefill else '' }}" placeholder="например: 1.0.23.4">
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="tester_name">Тестировщик</label>
+                <input type="text" id="tester_name" name="tester_name" value="{{ prefill.tester if prefill else '' }}" placeholder="Фамилия И.О.">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>Прошивка</label>
+            <label class="flashable-toggle" for="is_flashable">
+                <input type="checkbox" id="is_flashable" name="is_flashable"
+                       {% if prefill and prefill.flashable %}checked{% endif %}
+                       onchange="updateToggle(this)">
+                <div class="toggle-track"><div class="toggle-thumb"></div></div>
+                <div class="toggle-label-text">
+                    <span class="toggle-label-title">Прошивается</span>
+                    <span class="toggle-label-sub">Доступна установка пользовательской прошивки</span>
+                </div>
+                <span class="toggle-status {{ 'on' if prefill and prefill.flashable else 'off' }}" id="toggleStatus">
+                    {{ 'Да' if prefill and prefill.flashable else 'Нет' }}
+                </span>
+            </label>
+        </div>
+
+        <div class="form-group">
+            <label for="specifications">Технические характеристики</label>
+            <textarea id="specifications" name="specifications" rows="4" placeholder="Разрешение, процессор, RAM...">{{ prefill.specs if prefill else '' }}</textarea>
+        </div>
+
+        {% if all_tags %}
+        <div class="form-group">
+            <label>Метки</label>
+            <div class="tag-picker">
+                {% for tag in all_tags %}
+                <label class="tag-pick-item">
+                    <input type="checkbox" name="tags" value="{{ tag.id }}">
+                    <span class="tag-chip" style="--tag-color: {{ tag.color }};">{{ tag.name }}</span>
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="form-divider"><span>Файлы</span></div>
+
+        <div class="form-group">
+            <label>Фотографии (можно выбрать несколько)</label>
+            <div class="file-upload-wrap" id="photoWrap">
+                <input type="file" id="photos" name="photos" accept="image/jpeg,image/png,image/gif"
+                       multiple onchange="handlePhotos(this)">
+                <div class="file-upload-btn">
+                    <div class="file-upload-icon">🖼️</div>
+                    <div class="file-upload-text">
+                        <span class="file-upload-title">Выберите фото</span>
+                        <span class="file-upload-sub">JPG, PNG или GIF · можно несколько</span>
+                    </div>
+                </div>
+            </div>
+            <div class="new-photos-preview" id="photoPreview"></div>
+        </div>
+
+        <div class="form-group">
+            <label>Файлы прошивок (bin, zip, img, hex) · можно несколько</label>
+            <div class="file-upload-wrap" id="firmwareWrap">
+                <input type="file" id="firmwares" name="firmwares" accept=".bin,.zip,.img,.hex"
+                       multiple onchange="handleFirmwares(this)">
+                <div class="file-upload-btn">
+                    <div class="file-upload-icon">💾</div>
+                    <div class="file-upload-text">
+                        <span class="file-upload-title">Выберите прошивки</span>
+                        <span class="file-upload-sub">BIN, ZIP, IMG или HEX · можно несколько</span>
+                    </div>
+                </div>
+            </div>
+            <div id="firmwarePreview" style="margin-top:8px;"></div>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit">💾 Сохранить</button>
+            <a href="{{ back_url or url_for('index') }}" class="cancel-link">Отмена</a>
+        </div>
+    </form>
+</div>
+
+<style>
+.tag-picker {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.tag-pick-item {
+    cursor: pointer;
+}
+.tag-pick-item input[type=checkbox] {
+    display: none;
+}
+.tag-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 5px 14px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    background: color-mix(in srgb, var(--tag-color) 10%, transparent);
+    color: color-mix(in srgb, var(--tag-color) 70%, var(--text2));
+    border: 1.5px solid color-mix(in srgb, var(--tag-color) 25%, transparent);
+    transition: all 0.15s;
+    cursor: pointer;
+    user-select: none;
+}
+.tag-pick-item input:checked + .tag-chip {
+    background: color-mix(in srgb, var(--tag-color) 20%, transparent);
+    color: var(--tag-color);
+    border-color: color-mix(in srgb, var(--tag-color) 60%, transparent);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--tag-color) 20%, transparent);
+}
+.tag-chip:hover {
+    border-color: color-mix(in srgb, var(--tag-color) 50%, transparent);
+    color: var(--tag-color);
+}
+</style>
+
+<script>
+function updateToggle(checkbox) {
+    const s = document.getElementById('toggleStatus');
+    s.textContent = checkbox.checked ? 'Да' : 'Нет';
+    s.className = 'toggle-status ' + (checkbox.checked ? 'on' : 'off');
+}
+
+function handlePhotos(input) {
+    const wrap = document.getElementById('photoWrap');
+    const preview = document.getElementById('photoPreview');
+    const titleEl = wrap.querySelector('.file-upload-title');
+    const subEl = wrap.querySelector('.file-upload-sub');
+    preview.innerHTML = '';
+
+    if (input.files && input.files.length > 0) {
+        wrap.classList.add('has-file');
+        titleEl.textContent = `Выбрано: ${input.files.length} фото`;
+        subEl.textContent = Array.from(input.files).map(f => (f.size/1024).toFixed(0)+'KB').join(', ');
+
+        Array.from(input.files).forEach(file => {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = document.createElement('img');
+                img.src = e.target.result;
+                preview.appendChild(img);
+            };
+            reader.readAsDataURL(file);
+        });
+    } else {
+        wrap.classList.remove('has-file');
+        titleEl.textContent = 'Выберите фото';
+        subEl.textContent = 'JPG, PNG или GIF · можно несколько';
+    }
+}
+
+function handleFirmwares(input) {
+    const wrap = document.getElementById('firmwareWrap');
+    const preview = document.getElementById('firmwarePreview');
+    const titleEl = wrap.querySelector('.file-upload-title');
+    const subEl = wrap.querySelector('.file-upload-sub');
+    preview.innerHTML = '';
+    if (input.files && input.files.length > 0) {
+        const files = Array.from(input.files);
+        const totalMB = (files.reduce((s, f) => s + f.size, 0) / 1024 / 1024).toFixed(1);
+        wrap.classList.add('has-file');
+        titleEl.textContent = `Выбрано: ${files.length} файл${files.length > 1 ? (files.length < 5 ? 'а' : 'ов') : ''}`;
+        subEl.textContent = `Итого: ${totalMB} MB`;
+        files.forEach(f => {
+            const item = document.createElement('div');
+            item.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 10px;background:rgba(79,142,240,0.07);border:1px solid rgba(79,142,240,0.2);border-radius:8px;font-size:0.83rem;color:var(--text2);margin-bottom:4px;';
+            item.innerHTML = `<span style="flex-shrink:0">📦</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${f.name}</span><span style="color:var(--muted);font-size:0.75rem;flex-shrink:0;">${(f.size/1024/1024).toFixed(1)} MB</span>`;
+            preview.appendChild(item);
+        });
+    } else {
+        wrap.classList.remove('has-file');
+        titleEl.textContent = 'Выберите прошивки';
+        subEl.textContent = 'BIN, ZIP, IMG или HEX · можно несколько';
+    }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,374 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="breadcrumb">
+    <a href="{{ url_for('index') }}">Главная</a>
+    <span class="sep">›</span>
+    <a href="{{ url_for('brand_detail', brand_id=model.brand_id) }}">{{ model.brand.name }}</a>
+    <span class="sep">›</span>
+    <a href="{{ url_for('models_list', brand_id=model.brand_id, launcher_id=model.launcher_type_id) }}">{{ model.launcher_type.name }}</a>
+    <span class="sep">›</span>
+    <a href="{{ url_for('view_model', id=model.id) }}">{{ model.model }}</a>
+    <span class="sep">›</span>
+    <span class="current">Редактирование</span>
+</div>
+
+<h1>Редактирование модели</h1>
+
+<div class="form-card">
+    <form method="POST" enctype="multipart/form-data">
+        <!-- Передаём back_url через форму, чтобы после сохранения его не потерять -->
+        <input type="hidden" name="back_url" value="{{ back_url }}">
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="brand_id">Бренд *</label>
+                <select id="brand_id" name="brand_id" required>
+                    {% for brand in brands %}
+                        <option value="{{ brand.id }}" {% if brand.id == model.brand_id %}selected{% endif %}>{{ brand.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="launcher_type_id">Тип лаунчера *</label>
+                <select id="launcher_type_id" name="launcher_type_id" required>
+                    {% for launcher in launcher_types %}
+                        <option value="{{ launcher.id }}" {% if launcher.id == model.launcher_type_id %}selected{% endif %}>{{ launcher.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="model_name">Модель *</label>
+                <input type="text" id="model_name" name="model" value="{{ model.model }}" required>
+            </div>
+            <div class="form-group">
+                <label for="lot">Лот *</label>
+                <input type="text" id="lot" name="lot" value="{{ model.lot }}" required>
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="remote_control">Пульт</label>
+                <select id="remote_control" name="remote_control">
+                    <option value="">— Не выбрано —</option>
+                    {% for r in remotes %}
+                        <option value="{{ r.name }}" {% if model.remote_control == r.name %}selected{% endif %}>{{ r.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="software_version">Версия ПО</label>
+                <input type="text" id="software_version" name="software_version" value="{{ model.software_version or '' }}" placeholder="например: 1.0.23.4">
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="tester_name">Тестировщик</label>
+                <input type="text" id="tester_name" name="tester_name" value="{{ model.tester_name or '' }}" placeholder="Фамилия И.О.">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>Прошивка</label>
+            <label class="flashable-toggle" for="is_flashable">
+                <input type="checkbox" id="is_flashable" name="is_flashable"
+                    {% if model.is_flashable %}checked{% endif %} onchange="updateToggle(this)">
+                <div class="toggle-track"><div class="toggle-thumb"></div></div>
+                <div class="toggle-label-text">
+                    <span class="toggle-label-title">Прошивается</span>
+                    <span class="toggle-label-sub">Доступна установка пользовательской прошивки</span>
+                </div>
+                <span class="toggle-status {% if model.is_flashable %}on{% else %}off{% endif %}" id="toggleStatus">
+                    {% if model.is_flashable %}Да{% else %}Нет{% endif %}
+                </span>
+            </label>
+        </div>
+
+        <div class="form-group">
+            <label for="specifications">Технические характеристики</label>
+            <textarea id="specifications" name="specifications" rows="4">{{ model.specifications or '' }}</textarea>
+        </div>
+
+        {% if all_tags %}
+        <div class="form-group">
+            <label>Метки</label>
+            <div class="tag-picker">
+                {% for tag in all_tags %}
+                <label class="tag-pick-item">
+                    <input type="checkbox" name="tags" value="{{ tag.id }}"
+                           {% if tag in model.tags %}checked{% endif %}>
+                    <span class="tag-chip" style="--tag-color: {{ tag.color }};">{{ tag.name }}</span>
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="form-divider"><span>Файлы</span></div>
+
+        <!-- Текущие фото -->
+        {% if model.photos %}
+        <div class="form-group">
+            <label>Текущие фото <span style="color:var(--muted); font-weight:400; text-transform:none; letter-spacing:0;">(отметьте для удаления)</span></label>
+            <div class="photo-gallery">
+                {% for photo in model.photos %}
+                <label class="photo-delete-wrap">
+                    <input type="checkbox" name="delete_photos" value="{{ photo.id }}">
+                    <img src="{{ url_for('static', filename='uploads/photos/' + photo.filename) }}" alt="фото">
+                    <div class="photo-delete-badge">🗑</div>
+                    <div class="photo-delete-label">Удалить</div>
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="form-row">
+            <div class="form-group">
+                <label>Добавить фото</label>
+                <div class="file-upload-wrap" id="photoWrap">
+                    <input type="file" name="photos" accept="image/jpeg,image/png,image/gif"
+                           multiple onchange="handlePhotos(this)">
+                    <div class="file-upload-btn">
+                        <div class="file-upload-icon">🖼️</div>
+                        <div class="file-upload-text">
+                            <span class="file-upload-title">Выберите фото</span>
+                            <span class="file-upload-sub">JPG, PNG или GIF · можно несколько</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="new-photos-preview" id="photoPreview"></div>
+            </div>
+            <div class="form-group">
+                <label>Прошивки</label>
+
+                <!-- Текущие прошивки -->
+                {% if model.firmwares %}
+                <div class="firmware-manage-list">
+                    {% for fw in model.firmwares %}
+                    <div class="firmware-manage-item">
+                        <label class="firmware-check-wrap">
+                            <input type="checkbox" name="delete_firmwares" value="{{ fw.id }}">
+                            <span class="firmware-check-icon">🗑</span>
+                        </label>
+                        <span class="firmware-manage-icon">📦</span>
+                        <div class="firmware-manage-text">
+                            <span class="firmware-manage-name">{{ fw.original_name }}</span>
+                            <span class="firmware-manage-date">{{ fw.uploaded_at.strftime('%d.%m.%Y') }}</span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                <div style="font-size:0.74rem; color:var(--muted); margin-bottom:12px;">Отметьте для удаления</div>
+                {% endif %}
+
+                <!-- Загрузка новых -->
+                <div class="file-upload-wrap" id="firmwareWrap">
+                    <input type="file" name="firmwares" accept=".bin,.zip,.img,.hex"
+                           multiple onchange="handleFirmwares(this)">
+                    <div class="file-upload-btn">
+                        <div class="file-upload-icon">💾</div>
+                        <div class="file-upload-text">
+                            <span class="file-upload-title">Добавить прошивки</span>
+                            <span class="file-upload-sub">BIN, ZIP, IMG или HEX · можно несколько</span>
+                        </div>
+                    </div>
+                </div>
+                <div id="firmwarePreview" style="margin-top:8px;"></div>
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit">💾 Сохранить изменения</button>
+            <a href="{{ back_url }}" class="cancel-link">Отмена</a>
+        </div>
+    </form>
+</div>
+
+<script>
+function updateToggle(checkbox) {
+    const s = document.getElementById('toggleStatus');
+    s.textContent = checkbox.checked ? 'Да' : 'Нет';
+    s.className = 'toggle-status ' + (checkbox.checked ? 'on' : 'off');
+}
+
+function handlePhotos(input) {
+    const wrap = document.getElementById('photoWrap');
+    const preview = document.getElementById('photoPreview');
+    const titleEl = wrap.querySelector('.file-upload-title');
+    const subEl = wrap.querySelector('.file-upload-sub');
+    preview.innerHTML = '';
+
+    if (input.files && input.files.length > 0) {
+        wrap.classList.add('has-file');
+        titleEl.textContent = `Выбрано: ${input.files.length} фото`;
+        subEl.textContent = Array.from(input.files).map(f => (f.size/1024).toFixed(0)+'KB').join(', ');
+
+        Array.from(input.files).forEach(file => {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = document.createElement('img');
+                img.src = e.target.result;
+                preview.appendChild(img);
+            };
+            reader.readAsDataURL(file);
+        });
+    } else {
+        wrap.classList.remove('has-file');
+        titleEl.textContent = 'Выберите фото';
+        subEl.textContent = 'JPG, PNG или GIF · можно несколько';
+    }
+}
+
+function handleFile(input, wrapId) {
+    const wrap = document.getElementById(wrapId);
+    const titleEl = wrap.querySelector('.file-upload-title');
+    const subEl = wrap.querySelector('.file-upload-sub');
+    if (input.files && input.files[0]) {
+        wrap.classList.add('has-file');
+        titleEl.textContent = input.files[0].name;
+        subEl.textContent = (input.files[0].size / 1024).toFixed(1) + ' KB';
+    } else {
+        wrap.classList.remove('has-file');
+    }
+}
+
+function handleFirmwares(input) {
+    const wrap = document.getElementById('firmwareWrap');
+    const preview = document.getElementById('firmwarePreview');
+    const titleEl = wrap.querySelector('.file-upload-title');
+    const subEl = wrap.querySelector('.file-upload-sub');
+    preview.innerHTML = '';
+
+    if (input.files && input.files.length > 0) {
+        const files = Array.from(input.files);
+        const totalMB = (files.reduce((s, f) => s + f.size, 0) / 1024 / 1024).toFixed(1);
+        wrap.classList.add('has-file');
+        titleEl.textContent = `Выбрано: ${files.length} файл${files.length > 1 ? (files.length < 5 ? 'а' : 'ов') : ''}`;
+        subEl.textContent = `Итого: ${totalMB} MB`;
+        files.forEach(f => {
+            const item = document.createElement('div');
+            item.className = 'fw-preview-item';
+            item.innerHTML = `<span style="flex-shrink:0">📦</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${f.name}</span><span style="color:var(--muted);font-size:0.75rem;flex-shrink:0;">${(f.size/1024/1024).toFixed(1)} MB</span>`;
+            preview.appendChild(item);
+        });
+    } else {
+        wrap.classList.remove('has-file');
+        titleEl.textContent = 'Добавить прошивки';
+        subEl.textContent = 'BIN, ZIP, IMG или HEX · можно несколько';
+    }
+}
+</script>
+
+<style>
+/* Управление прошивками в форме */
+.firmware-manage-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+.firmware-manage-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    transition: border-color 0.2s;
+}
+.firmware-manage-item:has(input:checked) {
+    border-color: var(--danger);
+    background: rgba(240,90,90,0.06);
+}
+.firmware-check-wrap {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.firmware-check-wrap input[type=checkbox] {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 18px; height: 18px;
+    border-radius: 5px;
+    border: 1.5px solid var(--border);
+    background: transparent;
+    cursor: pointer;
+    position: relative;
+    transition: all 0.15s;
+}
+.firmware-check-wrap input:checked {
+    background: var(--danger);
+    border-color: var(--danger);
+}
+.firmware-check-wrap input:checked::after {
+    content: '';
+    position: absolute;
+    left: 4px; top: 2px;
+    width: 6px; height: 9px;
+    border: 2px solid #fff;
+    border-top: none; border-left: none;
+    transform: rotate(45deg);
+}
+.firmware-check-icon { display: none; }
+.firmware-manage-icon { font-size: 1rem; flex-shrink: 0; }
+.firmware-manage-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
+.firmware-manage-name { font-size: 0.85rem; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.firmware-manage-date { font-size: 0.72rem; color: var(--muted); }
+
+.fw-preview-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    background: rgba(79,142,240,0.07);
+    border: 1px solid rgba(79,142,240,0.2);
+    border-radius: 8px;
+    font-size: 0.83rem;
+    color: var(--text2);
+    margin-bottom: 4px;
+    min-width: 0;
+    overflow: hidden;
+}
+
+/* Тег-пикер */
+.tag-picker {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.tag-pick-item { cursor: pointer; }
+.tag-pick-item input[type=checkbox] { display: none; }
+.tag-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 5px 14px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    background: color-mix(in srgb, var(--tag-color) 10%, transparent);
+    color: color-mix(in srgb, var(--tag-color) 70%, var(--text2));
+    border: 1.5px solid color-mix(in srgb, var(--tag-color) 25%, transparent);
+    transition: all 0.15s;
+    cursor: pointer;
+    user-select: none;
+}
+.tag-pick-item input:checked + .tag-chip {
+    background: color-mix(in srgb, var(--tag-color) 20%, transparent);
+    color: var(--tag-color);
+    border-color: color-mix(in srgb, var(--tag-color) 60%, transparent);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--tag-color) 20%, transparent);
+}
+.tag-chip:hover {
+    border-color: color-mix(in srgb, var(--tag-color) 50%, transparent);
+    color: var(--tag-color);
+}
+</style>
+
+{% endblock %}

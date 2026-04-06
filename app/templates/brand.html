@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="breadcrumb">
+    <a href="{{ url_for('index') }}">Главная</a>
+    <span class="sep">›</span>
+    <span class="current">{{ brand.name }}</span>
+</div>
+
+<h1>{{ brand.name }}</h1>
+<h2>Типы лаунчеров</h2>
+
+<div class="launchers-grid">
+    {% for launcher in launcher_types %}
+        <div class="launcher-card">
+            <a href="{{ url_for('models_list', brand_id=brand.id, launcher_id=launcher.id) }}" class="launcher-link">
+                <div class="launcher-icon">⚙️</div>
+                <div class="launcher-name">{{ launcher.name }}</div>
+                <span class="launcher-arrow">→</span>
+            </a>
+        </div>
+    {% else %}
+        <div class="empty-state" style="grid-column:1/-1">
+            <div class="empty-icon">🔍</div>
+            <p>Для этого бренда пока нет моделей</p>
+            <a href="{{ url_for('add_model') }}" class="btn btn-primary">+ Добавить модель</a>
+        </div>
+    {% endfor %}
+</div>
+
+<div style="margin-top: 32px;">
+    <a href="{{ url_for('index') }}" class="btn btn-secondary">← Назад</a>
+</div>
+{% endblock %}

@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="breadcrumb">
+    <a href="{{ url_for('index') }}">Главная</a>
+    <span class="sep">›</span>
+    <span class="current">Пользователи</span>
+</div>
+
+<div class="models-header">
+    <h1 style="margin-bottom:0;">Пользователи</h1>
+    <a href="{{ url_for('admin.create_user') }}" class="btn btn-primary">+ Добавить пользователя</a>
+</div>
+
+<div class="table-wrap">
+    <table>
+        <thead>
+            <tr>
+                <th><span class="sort-link">Имя</span></th>
+                <th><span class="sort-link">Email</span></th>
+                <th><span class="sort-link">Роль</span></th>
+                <th><span class="sort-link">Способ входа</span></th>
+                <th><span class="sort-link">Статус</span></th>
+                <th><span class="sort-link">Добавлен</span></th>
+                <th><span class="sort-link">Действия</span></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for user in users %}
+            <tr class="{{ 'row-inactive' if not user.is_active_user else '' }}">
+
+                {# Определяем классы точки один раз #}
+                {% if not user.is_active_user %}
+                    {% set dot_class = 'dot-muted' %}
+                {% elif user.is_admin %}
+                    {% set dot_class = 'dot-admin' %}
+                {% else %}
+                    {% set dot_class = 'dot-user' %}
+                {% endif %}
+
+                <td>
+                    <span class="model-badge">
+                        <span class="model-dot {{ dot_class }}"></span>
+                        <span class="{{ 'user-inactive-name' if not user.is_active_user else '' }}">
+                            {{ user.name }}
+                        </span>
+                        {% if user.id == current_user.id %}
+                            <span class="self-label">(вы)</span>
+                        {% endif %}
+                    </span>
+                </td>
+
+                <td class="date-text {{ 'text-muted' if not user.is_active_user else '' }}">
+                    {{ user.email }}
+                </td>
+
+                <td>
+                    {% if user.is_admin %}
+                        <span class="role-badge admin">👑 Админ</span>
+                    {% else %}
+                        <span class="role-badge user">👤 Польз.</span>
+                    {% endif %}
+                </td>
+
+                <td>
+                    <div class="login-methods">
+                        {% if user.google_id %}
+                            <span class="login-method google">
+                                <svg width="12" height="12" viewBox="0 0 24 24" style="flex-shrink:0">
+                                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                                </svg>
+                                Google
+                            </span>
+                        {% endif %}
+                        {% if user.password_hash %}
+                            <span class="login-method password">🔑 Пароль</span>
+                        {% endif %}
+                        {% if not user.google_id and not user.password_hash %}
+                            <span class="text-muted" style="font-size:0.82rem;">—</span>
+                        {% endif %}
+                    </div>
+                </td>
+
+                <td>
+                    {% if user.is_active_user %}
+                        <span class="status-badge active">● Активен</span>
+                    {% else %}
+                        <span class="status-badge blocked">○ Заблокирован</span>
+                    {% endif %}
+                </td>
+
+                <td class="date-text">{{ user.created_at.strftime('%d.%m.%Y') }}</td>
+
+                <td>
+                    <div class="actions-cell">
+                        <a href="{{ url_for('admin.edit_user', user_id=user.id) }}"
+                           class="btn btn-secondary btn-sm" title="Редактировать">✏️</a>
+                        {% if user.id != current_user.id %}
+                            <form method="post" action="{{ url_for('admin.toggle_user', user_id=user.id) }}" style="display:inline;">
+                                <button type="submit"
+                                    class="btn btn-sm {{ 'btn-warning' if user.is_active_user else 'btn-success' }}"
+                                    title="{{ 'Заблокировать' if user.is_active_user else 'Активировать' }}">
+                                    {{ '🔒' if user.is_active_user else '🔓' }}
+                                </button>
+                            </form>
+                            {% set del_url = url_for('admin.delete_user', user_id=user.id) %}
+                            <button onclick="showDeleteModal('{{ del_url }}')"
+                                    class="btn btn-danger btn-sm" title="Удалить">🗑</button>
+                        {% endif %}
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<style>
+    /* Цвета точек — через классы вместо inline Jinja-стилей */
+    .model-dot.dot-muted {
+        background: var(--muted);
+        box-shadow: none;
+    }
+    .model-dot.dot-admin {
+        background: var(--accent2);
+        box-shadow: 0 0 7px var(--accent2);
+    }
+    .model-dot.dot-user {
+        background: var(--accent);
+        box-shadow: 0 0 7px var(--accent);
+    }
+
+    /* Неактивный пользователь */
+    .user-inactive-name {
+        color: var(--muted);
+        text-decoration: line-through;
+    }
+    .text-muted {
+        color: var(--muted);
+    }
+
+    /* Метка "(вы)" */
+    .self-label {
+        font-size: 0.7rem;
+        color: var(--muted);
+        font-weight: 400;
+    }
+
+    /* Колонка способа входа */
+    .login-methods {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+</style>
+{% endblock %}

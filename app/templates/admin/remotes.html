@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="breadcrumb">
+    <a href="{{ url_for('index') }}">Главная</a>
+    <span class="sep">›</span>
+    <span class="current">Пульты</span>
+</div>
+
+<div class="models-header">
+    <h1 style="margin-bottom:0;">Типы пультов</h1>
+    <a href="{{ url_for('admin.create_remote') }}" class="btn btn-primary">+ Добавить пульт</a>
+</div>
+
+<div class="table-wrap">
+    <table>
+        <thead>
+            <tr>
+                <th><span class="sort-link">Название</span></th>
+                <th><span class="sort-link">Действия</span></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for remote in remotes %}
+            <tr>
+                <td>
+                    <span class="model-badge">
+                        <span class="model-dot"></span>
+                        {{ remote.name }}
+                    </span>
+                </td>
+                <td>
+                    <div class="actions-cell">
+                        <a href="{{ url_for('admin.edit_remote', remote_id=remote.id) }}"
+                           class="btn btn-secondary btn-sm">✏️</a>
+                        <button class="btn btn-danger btn-sm"
+                                data-delete-url="{{ url_for('admin.delete_remote', remote_id=remote.id) }}"
+                                onclick="showDeleteModal(this.dataset.deleteUrl)">🗑</button>
+                    </div>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="2" style="text-align:center; padding:40px; color:var(--muted);">Пультов пока нет</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div style="margin-top:24px;">
+    <a href="{{ url_for('index') }}" class="btn btn-secondary">← Главная</a>
+</div>
+{% endblock %}

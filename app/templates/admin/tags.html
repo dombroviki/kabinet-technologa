@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="breadcrumb">
+    <a href="{{ url_for('index') }}">Главная</a>
+    <span class="sep">›</span>
+    <span class="current">Метки</span>
+</div>
+
+<div class="models-header">
+    <h1 style="margin-bottom:0;">Метки</h1>
+    <a href="{{ url_for('admin.create_tag') }}" class="btn btn-primary">+ Добавить метку</a>
+</div>
+
+<div class="table-wrap">
+    <table>
+        <thead>
+            <tr>
+                <th><span class="sort-link">Название</span></th>
+                <th><span class="sort-link">Моделей</span></th>
+                <th><span class="sort-link">Действия</span></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for tag in tags %}
+            <tr>
+                <td>
+                    <span class="tag-chip" style="--tag-color: {{ tag.color }}; font-size:0.85rem; padding:5px 14px;">{{ tag.name }}</span>
+                </td>
+                <td>
+                    <span class="lot-chip">{{ tag.tv_models|length }}</span>
+                </td>
+                <td>
+                    <div class="actions-cell">
+                        <a href="{{ url_for('admin.edit_tag', tag_id=tag.id) }}" class="btn btn-secondary btn-sm">✏️</a>
+                        <button class="btn btn-danger btn-sm"
+                                data-delete-url="{{ url_for('admin.delete_tag', tag_id=tag.id) }}"
+                                onclick="showDeleteModal(this.dataset.deleteUrl)">🗑</button>
+                    </div>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="3" style="text-align:center; padding:40px; color:var(--muted);">Меток пока нет</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div style="margin-top:24px;">
+    <a href="{{ url_for('index') }}" class="btn btn-secondary">← Главная</a>
+</div>
+
+<style>
+.tag-chip {
+    display: inline-flex; align-items: center;
+    padding: 3px 10px; border-radius: 20px;
+    font-size: 0.74rem; font-weight: 600;
+    background: color-mix(in srgb, var(--tag-color) 15%, transparent);
+    color: var(--tag-color);
+    border: 1px solid color-mix(in srgb, var(--tag-color) 35%, transparent);
+}
+</style>
+{% endblock %}

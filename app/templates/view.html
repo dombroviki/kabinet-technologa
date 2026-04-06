@@ -1,0 +1,306 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="breadcrumb">
+    <a href="{{ url_for('index') }}">Главная</a>
+    <span class="sep">›</span>
+    <a href="{{ url_for('brand_detail', brand_id=model.brand_id) }}">{{ model.brand.name }}</a>
+    <span class="sep">›</span>
+    <a href="{{ url_for('models_list', brand_id=model.brand_id, launcher_id=model.launcher_type_id) }}">{{ model.launcher_type.name }}</a>
+    <span class="sep">›</span>
+    <span class="current">{{ model.model }}</span>
+</div>
+
+<div class="detail-header">
+    <div>
+        <h1 style="margin-bottom: 10px;">{{ model.model }}</h1>
+        {% if model.is_flashable %}
+            <span class="flashable-badge yes">⚡ Прошивается</span>
+        {% else %}
+            <span class="flashable-badge no">✕ Не прошивается</span>
+        {% endif %}
+    </div>
+    <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:flex-start;">
+        <a href="{{ url_for('edit_model', id=model.id) }}" class="btn btn-secondary">✏️ Редактировать</a>
+        <button class="btn btn-danger" data-delete-url="{{ url_for('delete_model', id=model.id) }}" onclick="showDeleteModal(this.dataset.deleteUrl)">🗑 Удалить</button>
+    </div>
+</div>
+
+<div class="detail-grid">
+    <div class="detail-card">
+        <div class="detail-label">Производитель</div>
+        <div class="detail-value">{{ model.brand.name }}</div>
+    </div>
+    <div class="detail-card">
+        <div class="detail-label">Тип лаунчера</div>
+        <div class="detail-value">{{ model.launcher_type.name }}</div>
+    </div>
+
+    <!-- Модель с кнопкой копирования -->
+    <div class="detail-card">
+        <div class="detail-label">Модель</div>
+        <div class="detail-value copy-row">
+            <span class="copy-text" id="copy-model">{{ model.model }}</span>
+            <button class="copy-btn" onclick="copyValue('copy-model', this)" title="Копировать">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            </button>
+        </div>
+    </div>
+
+    <div class="detail-card">
+        <div class="detail-label">Лот</div>
+        <div class="detail-value"><span class="lot-chip">{{ model.lot }}</span></div>
+    </div>
+
+    <div class="detail-card">
+        <div class="detail-label">🎮 Пульт</div>
+        <div class="detail-value">{{ model.remote_control or '—' }}</div>
+    </div>
+
+    <!-- Версия ПО с кнопкой копирования -->
+    <div class="detail-card">
+        <div class="detail-label">💿 Версия ПО</div>
+        <div class="detail-value copy-row">
+            <span class="copy-text" id="copy-sw">{{ model.software_version or '—' }}</span>
+            {% if model.software_version %}
+            <button class="copy-btn" onclick="copyValue('copy-sw', this)" title="Копировать">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            </button>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="detail-card">
+        <div class="detail-label">👤 Тестировщик</div>
+        <div class="detail-value">
+            {% if model.tester_name %}<span class="tester-badge">{{ model.tester_name }}</span>{% else %}—{% endif %}
+        </div>
+    </div>
+    <div class="detail-card">
+        <div class="detail-label">Дата добавления</div>
+        <div class="detail-value" style="color:var(--text2);">{{ model.date_added.strftime('%d.%m.%Y %H:%M') }}</div>
+    </div>
+
+    {% if model.specifications %}
+    <div class="detail-card full-width">
+        <div class="detail-label">Технические характеристики</div>
+        <div class="detail-value" style="white-space:pre-line;">{{ model.specifications }}</div>
+    </div>
+    {% endif %}
+
+    {% if model.tags %}
+    <div class="detail-card full-width">
+        <div class="detail-label">Метки</div>
+        <div class="detail-value" style="display:flex; gap:8px; flex-wrap:wrap; margin-top:4px;">
+            {% for tag in model.tags %}
+            <span class="tag-chip" style="--tag-color: {{ tag.color }}; font-size:0.85rem; padding:5px 14px;">{{ tag.name }}</span>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Галерея фото — ленивая загрузка -->
+    {% if model.photos %}
+    <div class="detail-card full-width">
+        <div class="detail-label">Фото ({{ model.photos|length }})</div>
+        <div class="photo-gallery">
+            {% for photo in model.photos %}
+            {% set photo_url = url_for('static', filename='uploads/photos/' + photo.filename) %}
+            <div class="photo-thumb">
+                <img src="{{ photo_url }}"
+                     loading="lazy"
+                     decoding="async"
+                     alt="фото {{ loop.index }}"
+                     data-src="{{ photo_url }}"
+                     class="lightbox-trigger lazy-photo">
+                <div class="photo-thumb-overlay">
+                    <a href="{{ url_for('download_photo', photo_id=photo.id) }}" class="btn btn-secondary btn-sm" title="Скачать">⬇</a>
+                    <button class="btn btn-secondary btn-sm lightbox-trigger" data-src="{{ photo_url }}" title="Открыть">🔍</button>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if model.firmwares %}
+    <div class="detail-card full-width">
+        <div class="detail-label">Прошивки ({{ model.firmwares|length }})</div>
+        <div class="firmware-list">
+            {% for fw in model.firmwares %}
+            <div class="firmware-item">
+                <div class="firmware-info">
+                    <span class="firmware-icon">📦</span>
+                    <div class="firmware-text">
+                        <span class="firmware-name">{{ fw.original_name }}</span>
+                        <span class="firmware-date">{{ fw.uploaded_at.strftime('%d.%m.%Y %H:%M') }}</span>
+                    </div>
+                </div>
+                <div class="firmware-actions">
+                    <a href="{{ url_for('download_firmware', fw_id=fw.id) }}"
+                       class="btn btn-primary btn-sm">⬇ Скачать</a>
+                    <form method="post" action="{{ url_for('delete_firmware', fw_id=fw.id) }}" style="display:inline;">
+                        <button type="submit" class="btn btn-danger btn-sm"
+                                onclick="return confirm('Удалить прошивку {{ fw.original_name }}?')">🗑</button>
+                    </form>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<div style="margin-top: 8px;">
+    <a href="{{ back_url }}" class="btn btn-secondary">← Назад</a>
+</div>
+
+<!-- Лайтбокс -->
+<div id="lightbox" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.9); z-index:2000; align-items:center; justify-content:center; cursor:zoom-out;">
+    <img id="lightboxImg" src="" style="max-width:90vw; max-height:90vh; border-radius:12px; object-fit:contain; box-shadow:0 0 60px rgba(0,0,0,0.8);">
+</div>
+
+<style>
+    .copy-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .copy-btn {
+        background: none;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        color: var(--muted);
+        cursor: pointer;
+        padding: 3px 6px;
+        display: inline-flex;
+        align-items: center;
+        transition: color 0.15s, border-color 0.15s, background 0.15s;
+        flex-shrink: 0;
+    }
+    .copy-btn:hover {
+        color: var(--accent);
+        border-color: var(--accent);
+        background: rgba(91,141,238,0.08);
+    }
+    .copy-btn.copied {
+        color: var(--success);
+        border-color: var(--success);
+        background: rgba(62,207,142,0.08);
+    }
+
+    .tag-chip {
+        display: inline-flex;
+        align-items: center;
+        padding: 3px 10px;
+        border-radius: 20px;
+        font-size: 0.74rem;
+        font-weight: 600;
+        background: color-mix(in srgb, var(--tag-color) 15%, transparent);
+        color: var(--tag-color);
+        border: 1px solid color-mix(in srgb, var(--tag-color) 35%, transparent);
+        white-space: nowrap;
+    }
+
+    /* Список прошивок */
+    .firmware-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-top: 10px;
+    }
+    .firmware-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 10px 14px;
+        background: var(--surface2);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        transition: border-color 0.2s;
+    }
+    .firmware-item:hover { border-color: rgba(79,142,240,0.3); }
+    .firmware-info {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+    }
+    .firmware-icon { font-size: 1.1rem; flex-shrink: 0; }
+    .firmware-text {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        min-width: 0;
+    }
+    .firmware-name {
+        font-size: 0.88rem;
+        font-weight: 500;
+        color: var(--text);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .firmware-date {
+        font-size: 0.74rem;
+        color: var(--muted);
+    }
+    .firmware-actions {
+        display: flex;
+        gap: 6px;
+        flex-shrink: 0;
+    }
+</style>
+
+<script>
+    // Лайтбокс
+    document.querySelectorAll('.lightbox-trigger').forEach(function(el) {
+        el.addEventListener('click', function() {
+            openLightbox(this.dataset.src);
+        });
+    });
+    document.getElementById('lightbox').addEventListener('click', closeLightbox);
+
+    function openLightbox(src) {
+        document.getElementById('lightboxImg').src = src;
+        document.getElementById('lightbox').style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+    }
+    function closeLightbox() {
+        document.getElementById('lightbox').style.display = 'none';
+        document.body.style.overflow = '';
+    }
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') closeLightbox();
+    });
+
+    // Копирование
+    function copyValue(elemId, btn) {
+        const text = document.getElementById(elemId).textContent.trim();
+        navigator.clipboard.writeText(text).then(function() {
+            btn.classList.add('copied');
+            const originalHTML = btn.innerHTML;
+            btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+            setTimeout(function() {
+                btn.classList.remove('copied');
+                btn.innerHTML = originalHTML;
+            }, 1500);
+        });
+    }
+
+    // Ленивая загрузка через IntersectionObserver (fallback для старых браузеров)
+    if ('IntersectionObserver' in window) {
+        const lazyImgs = document.querySelectorAll('img.lazy-photo');
+        const observer = new IntersectionObserver(function(entries) {
+            entries.forEach(function(entry) {
+                if (entry.isIntersecting) {
+                    const img = entry.target;
+                    img.classList.remove('lazy-photo');
+                    observer.unobserve(img);
+                }
+            });
+        }, { rootMargin: '200px' });
+        lazyImgs.forEach(function(img) { observer.observe(img); });
+    }
+</script>
+{% endblock %}
