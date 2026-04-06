@@ -65,9 +65,13 @@ def google_login():
     state = secrets.token_urlsafe(16)
     session['oauth_state'] = state
 
+    redirect_uri = url_for('auth.google_callback', _external=True)
+    # Render работает за proxy — принудительно https
+    redirect_uri = redirect_uri.replace('http://', 'https://')
+
     params = {
         'client_id':     current_app.config['GOOGLE_CLIENT_ID'],
-        'redirect_uri':  url_for('auth.google_callback', _external=True),
+        'redirect_uri':  redirect_uri,
         'response_type': 'code',
         'scope':         SCOPES,
         'state':         state,
@@ -89,11 +93,14 @@ def google_callback():
         return redirect(url_for('auth.login'))
 
     # Обмен кода на токен
+    redirect_uri = url_for('auth.google_callback', _external=True)
+    redirect_uri = redirect_uri.replace('http://', 'https://')
+
     token_resp = requests.post(GOOGLE_TOKEN_URL, data={
         'code':          code,
         'client_id':     current_app.config['GOOGLE_CLIENT_ID'],
         'client_secret': current_app.config['GOOGLE_CLIENT_SECRET'],
-        'redirect_uri':  url_for('auth.google_callback', _external=True),
+        'redirect_uri':  redirect_uri,
         'grant_type':    'authorization_code',
     })
 
