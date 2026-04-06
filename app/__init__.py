@@ -37,5 +37,17 @@ def create_app(config_class=Config):
     # Создаём таблицы если их нет
     with app.app_context():
         db.create_all()
+        # Создаём первого админа если пользователей нет
+        from .models import User
+        if User.query.count() == 0:
+            admin = User(
+                email='doombrovskii@gmail.com',
+                name='Домбровский Г.И.',
+                role='admin',
+                is_active_user=True
+            )
+            admin.set_password('horizonttest9')
+            db.session.add(admin)
+            db.session.commit()
 
     return app
