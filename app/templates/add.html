@@ -58,7 +58,7 @@
                 <select id="remote_control" name="remote_control">
                     <option value="">— Не выбрано —</option>
                     {% for r in remotes %}
-                        <option value="{{ r.name }}" {% if prefill and prefill.remote == r.name %}selected{% endif %}>{{ r.name }}</option>
+                        <option value="{{ r.id }}" {% if prefill and prefill.remote == r.name %}selected{% endif %}>{{ r.name }}</option>
                     {% endfor %}
                 </select>
             </div>

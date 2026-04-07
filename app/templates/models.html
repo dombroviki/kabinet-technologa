@@ -10,18 +10,24 @@
 
 <div class="models-header">
     <h1 style="margin-bottom:0;">{{ brand.name }} <span style="color:var(--muted); font-weight:400;">—</span> {{ launcher.name }}</h1>
-    <a href="{{ url_for('add_model', prefill_brand=brand.id, prefill_launcher=launcher.id, back_url=request.url) }}" class="btn btn-primary">+ Добавить модель</a>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <a href="{{ url_for('export_excel', brand_id=brand.id, launcher_id=launcher.id) }}" class="btn btn-secondary">⬇ Excel</a>
+        <a href="{{ url_for('add_model', prefill_brand=brand.id, prefill_launcher=launcher.id, back_url=request.url) }}" class="btn btn-primary">+ Добавить модель</a>
+    </div>
 </div>
 
 <!-- Поиск -->
-<form method="get" class="local-search-form" style="margin-bottom: 16px;">
+<form method="get" class="local-search-form" style="margin-bottom: 16px;" autocomplete="off" id="localSearchForm">
     <input type="hidden" name="sort" value="{{ sort }}">
     <input type="hidden" name="order" value="{{ order }}">
     <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-        <div class="search-bar">
+        <div class="search-bar" style="position:relative;">
             <span class="search-icon">🔍</span>
-            <input type="text" name="q" value="{{ q }}" placeholder="Поиск по названию модели..." autocomplete="off">
+            <input type="text" id="localSearchInput" name="q" value="{{ q }}"
+                   placeholder="Поиск по модели, лоту, версии ПО..."
+                   autocomplete="off">
             {% if q %}<button type="button" class="search-clear" onclick="clearSearch()">✕</button>{% endif %}
+            <div id="localSuggest" class="local-suggest"></div>
         </div>
         <button type="submit" class="btn btn-secondary btn-sm">Найти</button>
     </div>
@@ -104,17 +110,21 @@
             <div class="model-card-details">
                 <div class="mcd-item">
                     <span class="mcd-label">Пульт</span>
-                    <span class="mcd-value">{{ model.remote_control or '—' }}</span>
+                    <span class="mcd-value inline-edit" data-id="{{ model.id }}" data-field="remote_control">{{ model.remote.name if model.remote else '—' }}</span>
                 </div>
                 <div class="mcd-item">
                     <span class="mcd-label">Тестировщик</span>
-                    <span class="mcd-value">
+                    <span class="mcd-value inline-edit" data-id="{{ model.id }}" data-field="tester_name">
                         {% if model.tester_name %}<span class="tester-mini">{{ model.tester_name }}</span>{% else %}—{% endif %}
                     </span>
                 </div>
                 <div class="mcd-item">
                     <span class="mcd-label">Версия ПО</span>
-                    <span class="mcd-value">{{ model.software_version or '—' }}</span>
+                    <span class="mcd-value inline-edit" data-id="{{ model.id }}" data-field="software_version">{{ model.software_version or '—' }}</span>
+                </div>
+                <div class="mcd-item">
+                    <span class="mcd-label">Лот</span>
+                    <span class="mcd-value inline-edit" data-id="{{ model.id }}" data-field="lot">{{ model.lot }}</span>
                 </div>
                 <div class="mcd-item">
                     <span class="mcd-label">Добавлено</span>
@@ -414,5 +424,193 @@ function clearSearch() {
     url.searchParams.delete('page');
     window.location.href = url.toString();
 }
+
+// ── АВТОДОПОЛНЕНИЕ ЛОКАЛЬНОГО ПОИСКА ──
+(function() {
+    const BRAND_ID = "{{ brand.id }}";
+    const input    = document.getElementById('localSearchInput');
+    const suggest  = document.getElementById('localSuggest');
+    if (!input || !suggest) return;
+
+    let timer = null;
+
+    input.addEventListener('input', function() {
+        clearTimeout(timer);
+        const q = this.value.trim();
+        if (q.length < 2) { suggest.style.display = 'none'; return; }
+        timer = setTimeout(() => {
+            fetch('/api/suggest?q=' + encodeURIComponent(q) + '&brand_id=' + BRAND_ID)
+                .then(r => r.json())
+                .then(items => {
+                    if (!items.length) { suggest.style.display = 'none'; return; }
+                    suggest.innerHTML = items.map(item =>
+                        '<a class="local-suggest-item" href="' + item.url + '">' +
+                            '<span class="lsi-model">' + item.model + '</span>' +
+                            '<span class="lsi-meta">' +
+                                (item.lot ? '<span class="lot-chip" style="font-size:0.7rem;padding:1px 6px;">' + item.lot + '</span>' : '') +
+                                (item.sw  ? '<span style="color:var(--muted);font-size:0.75rem;">\u{1F4BF} ' + item.sw + '</span>' : '') +
+                            '</span>' +
+                        '</a>'
+                    ).join('');
+                    suggest.style.display = 'block';
+                })
+                .catch(() => { suggest.style.display = 'none'; });
+        }, 220);
+    });
+
+    input.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') { suggest.style.display = 'none'; }
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            const first = suggest.querySelector('.local-suggest-item');
+            if (first) first.focus();
+        }
+    });
+
+    suggest.addEventListener('keydown', function(e) {
+        const items = [...suggest.querySelectorAll('.local-suggest-item')];
+        const idx   = items.indexOf(document.activeElement);
+        if (e.key === 'ArrowDown' && idx < items.length - 1) { e.preventDefault(); items[idx+1].focus(); }
+        if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            if (idx > 0) items[idx-1].focus(); else input.focus();
+        }
+        if (e.key === 'Escape') { suggest.style.display = 'none'; input.focus(); }
+    });
+
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('#localSearchForm')) suggest.style.display = 'none';
+    });
+})();
+
+// ── ИНЛАЙН РЕДАКТИРОВАНИЕ ──
+const REMOTES = [{% for r in all_remotes %}"{{ r.name }}"{% if not loop.last %},{% endif %}{% endfor %}];
+
+document.addEventListener('click', function(e) {
+    const cell = e.target.closest('.inline-edit');
+    if (!cell || cell.querySelector('input') || cell.querySelector('select')) return;
+
+    const id    = cell.dataset.id;
+    const field = cell.dataset.field;
+    const old   = cell.innerText.trim().replace('—', '');
+
+    let input;
+
+    // Для пульта — select из справочника
+    if (field === 'remote_control') {
+        input = document.createElement('select');
+        input.className = 'inline-input';
+        const emptyOpt = document.createElement('option');
+        emptyOpt.value = '';
+        emptyOpt.textContent = '— Не выбрано —';
+        input.appendChild(emptyOpt);
+        REMOTES.forEach(name => {
+            const opt = document.createElement('option');
+            opt.value = name;
+            opt.textContent = name;
+            if (name === old) opt.selected = true;
+            input.appendChild(opt);
+        });
+    } else {
+        input = document.createElement('input');
+        input.type  = 'text';
+        input.value = old;
+        input.className = 'inline-input';
+    }
+
+    input.onclick = e => e.stopPropagation();
+    cell.innerHTML = '';
+    cell.appendChild(input);
+    input.focus();
+
+    function save() {
+        const val = input.value.trim();
+        fetch(`/api/inline_edit/${id}`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({field, value: val})
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.ok) {
+                cell.innerHTML = val || '—';
+                cell.classList.add('inline-saved');
+                setTimeout(() => cell.classList.remove('inline-saved'), 1000);
+            } else {
+                cell.innerHTML = old || '—';
+            }
+        })
+        .catch(() => { cell.innerHTML = old || '—'; });
+    }
+
+    input.addEventListener('blur', save);
+    input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+        if (e.key === 'Escape') { cell.innerHTML = old || '—'; }
+    });
+});
 </script>
+
+<style>
+/* Инлайн редактирование */
+.inline-edit {
+    cursor: text;
+    border-radius: 4px;
+    padding: 2px 4px;
+    margin: -2px -4px;
+    transition: background 0.15s;
+    display: inline-block;
+    min-width: 40px;
+}
+.inline-edit:hover { background: rgba(79,142,240,0.1); }
+
+.inline-input {
+    background: var(--surface);
+    border: 1.5px solid var(--accent);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 0.88rem;
+    font-family: 'DM Sans', sans-serif;
+    padding: 3px 8px;
+    width: 100%;
+    outline: none;
+}
+
+.inline-saved { background: rgba(52,200,122,0.15) !important; }
+
+/* ── АВТОДОПОЛНЕНИЕ ЛОКАЛЬНОГО ПОИСКА ── */
+.local-suggest {
+    display: none;
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    background: var(--surface);
+    border: 1px solid rgba(79,142,240,0.3);
+    border-radius: 12px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+    overflow: hidden;
+    z-index: 200;
+    min-width: 280px;
+}
+.local-suggest-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 9px 14px;
+    text-decoration: none;
+    color: var(--text);
+    font-size: 0.88rem;
+    transition: background 0.12s;
+    border-bottom: 1px solid var(--border);
+    outline: none;
+}
+.local-suggest-item:last-child { border-bottom: none; }
+.local-suggest-item:hover,
+.local-suggest-item:focus { background: rgba(79,142,240,0.08); color: var(--text); }
+.lsi-model { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lsi-meta  { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+</style>
+
 {% endblock %}

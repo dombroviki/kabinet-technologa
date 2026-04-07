@@ -32,6 +32,9 @@ class User(db.Model, UserMixin):
 class RemoteControl(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), unique=True, nullable=False)
+    # При переименовании — все модели автоматически видят новое имя через FK
+    tv_models = db.relationship('TVModel', backref='remote', lazy=True,
+                                foreign_keys='TVModel.remote_control_id')
 
 # Таблица связи тегов и моделей (many-to-many)
 tv_model_tags = db.Table('tv_model_tags',
@@ -76,7 +79,8 @@ class TVModel(db.Model):
     specifications = db.Column(db.Text, nullable=True)
     date_added = db.Column(db.DateTime, default=datetime.utcnow)
     firmware_filename = db.Column(db.String(200), nullable=True)  # legacy, не используется
-    remote_control = db.Column(db.String(200), nullable=True)
+    remote_control = db.Column(db.String(200), nullable=True)     # legacy, оставляем для совместимости
+    remote_control_id = db.Column(db.Integer, db.ForeignKey('remote_control.id'), nullable=True)
     software_version = db.Column(db.String(100), nullable=True)
     tester_name = db.Column(db.String(100), nullable=True)
     tester_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)

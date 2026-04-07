@@ -53,7 +53,7 @@
 
     <div class="detail-card">
         <div class="detail-label">🎮 Пульт</div>
-        <div class="detail-value">{{ model.remote_control or '—' }}</div>
+        <div class="detail-value">{{ model.remote.name if model.remote else '—' }}</div>
     </div>
 
     <!-- Версия ПО с кнопкой копирования -->

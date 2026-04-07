@@ -76,12 +76,14 @@ def init_app(app):
             query = query.filter(TVModel.tags.any(Tag.id == tag_filter))
 
         all_tags = Tag.query.order_by(Tag.name).all()
+        all_remotes = RemoteControl.query.order_by(RemoteControl.name).all()
         pagination = query.order_by(sort_expr).paginate(page=page, per_page=20, error_out=False)
         return render_template('models.html',
             brand=brand, launcher=launcher,
             models=pagination.items, pagination=pagination,
             sort=sort, order=order, q=q,
-            all_tags=all_tags, tag_filter=tag_filter)
+            all_tags=all_tags, tag_filter=tag_filter,
+            all_remotes=all_remotes)
 
     @app.route('/add', methods=['GET', 'POST'])
     @login_required
@@ -92,7 +94,7 @@ def init_app(app):
             model          = request.form.get('model')
             lot            = request.form.get('lot')
             specs          = request.form.get('specifications')
-            remote         = request.form.get('remote_control')
+            remote         = request.form.get('remote_control')  # это ID пульта
             sw_version     = request.form.get('software_version')   # ← НОВОЕ
             tester_name    = request.form.get('tester_name') or current_user.name
             flashable      = request.form.get('is_flashable') == 'on'
@@ -112,7 +114,7 @@ def init_app(app):
             tv = TVModel(
                 brand_id=brand_id, launcher_type_id=launcher_id,
                 model=model, lot=lot, specifications=specs,
-                remote_control=remote,
+                remote_control_id=int(remote) if remote else None,
                 software_version=sw_version,
                 tester_name=tester_name,
                 tester_id=current_user.id,
@@ -192,7 +194,7 @@ def init_app(app):
             model.model            = request.form.get('model')
             model.lot              = request.form.get('lot')
             model.specifications   = request.form.get('specifications')
-            model.remote_control   = request.form.get('remote_control')
+            model.remote_control_id = int(request.form.get('remote_control')) if request.form.get('remote_control') else None
             model.software_version = request.form.get('software_version')   # ← НОВОЕ
             model.tester_name      = request.form.get('tester_name') or current_user.name
             model.is_flashable     = request.form.get('is_flashable') == 'on'
@@ -272,7 +274,7 @@ def init_app(app):
             prefill_launcher=src.launcher_type_id,
             prefill_model=src.model + ' (копия)',
             prefill_lot=src.lot,
-            prefill_remote=src.remote_control or '',
+            prefill_remote=src.remote.name if src.remote else '',
             prefill_sw=src.software_version or '',
             prefill_tester=src.tester_name or '',
             prefill_flashable='1' if src.is_flashable else '0',
@@ -330,18 +332,27 @@ def init_app(app):
     def suggest():
         from flask import jsonify
         q = request.args.get('q', '').strip()
+        brand_id = request.args.get('brand_id', '').strip()
         if len(q) < 2:
             return jsonify([])
-        results = TVModel.query\
-            .join(Brand).join(LauncherType)\
-            .filter(
-                db.or_(
-                    TVModel.model.ilike(f'%{q}%'),
-                    TVModel.lot.ilike(f'%{q}%'),
-                    TVModel.software_version.ilike(f'%{q}%'),
-                    Brand.name.ilike(f'%{q}%'),
-                )
-            ).order_by(TVModel.date_added.desc()).limit(8).all()
+
+        words = q.split()
+        query = TVModel.query.join(Brand).join(LauncherType)
+
+        # Фильтруем по бренду если передан (локальный поиск)
+        if brand_id:
+            query = query.filter(TVModel.brand_id == brand_id)
+
+        # Каждое слово должно встречаться хоть в одном поле
+        for word in words:
+            query = query.filter(db.or_(
+                TVModel.model.ilike(f'%{word}%'),
+                TVModel.lot.ilike(f'%{word}%'),
+                TVModel.software_version.ilike(f'%{word}%'),
+                Brand.name.ilike(f'%{word}%'),
+            ))
+
+        results = query.order_by(TVModel.date_added.desc()).limit(8).all()
         return jsonify([{
             'id':       m.id,
             'model':    m.model,
@@ -358,18 +369,17 @@ def init_app(app):
         q = request.args.get('q', '').strip()
         results = []
         if q:
-            results = TVModel.query\
-                .join(Brand).join(LauncherType)\
-                .filter(
-                    db.or_(
-                        TVModel.model.ilike(f'%{q}%'),
-                        TVModel.lot.ilike(f'%{q}%'),
-                        TVModel.tester_name.ilike(f'%{q}%'),
-                        TVModel.remote_control.ilike(f'%{q}%'),
-                        TVModel.software_version.ilike(f'%{q}%'),
-                        Brand.name.ilike(f'%{q}%'),
-                    )
-                ).order_by(TVModel.date_added.desc()).limit(50).all()
+            words = q.split()
+            query = TVModel.query.join(Brand).join(LauncherType)
+            for word in words:
+                query = query.filter(db.or_(
+                    TVModel.model.ilike(f'%{word}%'),
+                    TVModel.lot.ilike(f'%{word}%'),
+                    TVModel.tester_name.ilike(f'%{word}%'),
+                    TVModel.software_version.ilike(f'%{word}%'),
+                    Brand.name.ilike(f'%{word}%'),
+                ))
+            results = query.order_by(TVModel.date_added.desc()).limit(50).all()
         return render_template('search.html', q=q, results=results)
 
     @app.route('/download_photo/<int:photo_id>')
@@ -379,3 +389,319 @@ def init_app(app):
         return send_from_directory(
             os.path.join(current_app.config['UPLOAD_FOLDER'], 'photos'),
             photo.filename, as_attachment=True, download_name=photo.filename)
+
+    # ── ГЛОБАЛЬНЫЙ ЭКСПОРТ ВСЕГО ──
+    @app.route('/export/all')
+    @login_required
+    def export_all():
+        import io, csv
+        from flask import Response
+        models = TVModel.query.join(Brand).join(LauncherType)\
+            .order_by(Brand.name, LauncherType.name, TVModel.model).all()
+
+        output = io.StringIO()
+        writer = csv.writer(output, delimiter=';')
+        writer.writerow([
+            'Бренд', 'Лаунчер', 'Модель', 'Лот', 'Пульт', 'Версия ПО',
+            'Прошивается', 'Тестировщик', 'Метки', 'Дата добавления'
+        ])
+        for m in models:
+            writer.writerow([
+                m.brand.name,
+                m.launcher_type.name,
+                m.model,
+                m.lot,
+                m.remote.name if m.remote else '',
+                m.software_version or '',
+                'Да' if m.is_flashable else 'Нет',
+                m.tester_name or '',
+                ', '.join(t.name for t in m.tags),
+                m.date_added.strftime('%d.%m.%Y'),
+            ])
+
+        output.seek(0)
+        return Response(
+            '\ufeff' + output.getvalue(),
+            mimetype='text/csv; charset=utf-8',
+            headers={'Content-Disposition': 'attachment; filename="kabinet_export.csv"'}
+        )
+
+    # ── ГЛОБАЛЬНЫЙ ИМПОРТ ──
+    @app.route('/import/all', methods=['GET', 'POST'])
+    @login_required
+    def import_all():
+        if request.method == 'POST':
+            import io
+            file = request.files.get('file')
+            if not file or not file.filename:
+                flash('Выберите файл', 'error')
+                return redirect(request.url)
+
+            launcher_name = 'собственный'
+            ext = file.filename.rsplit('.', 1)[-1].lower()
+
+            try:
+                added = skipped = 0
+
+                if ext in ('xlsx', 'xls'):
+                    import openpyxl
+                    wb = openpyxl.load_workbook(io.BytesIO(file.read()), data_only=True)
+
+                    launcher = LauncherType.query.filter_by(name=launcher_name).first()
+                    if not launcher:
+                        launcher = LauncherType(name=launcher_name)
+                        db.session.add(launcher)
+                        db.session.flush()
+
+                    skip_sheets = {'Требования по качеству'}
+
+                    for sheet_name in wb.sheetnames:
+                        if sheet_name in skip_sheets:
+                            continue
+                        ws = wb[sheet_name]
+                        brand_name = sheet_name.strip()
+                        brand = Brand.query.filter_by(name=brand_name).first()
+                        if not brand:
+                            brand = Brand(name=brand_name)
+                            db.session.add(brand)
+                            db.session.flush()
+
+                        for row in ws.iter_rows(min_row=5, values_only=False):
+                            model_name = str(row[0].value).strip() if row[0].value else ''
+                            lot_raw    = row[1].value
+                            tester     = str(row[7].value).strip() if row[7].value else ''
+                            flashable  = str(row[8].value).strip().lower() == 'да' if row[8].value else False
+                            sw_version = str(row[9].value).strip() if row[9].value else ''
+                            remote     = str(row[10].value).strip() if row[10].value else ''
+
+                            # Читаем комментарий из ячейки Версия ПО (колонка 9)
+                            sw_comment = ''
+                            if row[9].comment and row[9].comment.text:
+                                raw = row[9].comment.text.strip()
+                                # Убираем служебный заголовок Excel threaded comments
+                                marker = 'Comment:'
+                                if marker in raw:
+                                    raw = raw[raw.index(marker) + len(marker):].strip()
+                                sw_comment = raw
+
+                            if not model_name or model_name == 'None':
+                                continue
+                            lot = str(int(lot_raw)) if isinstance(lot_raw, float) else str(lot_raw or '').strip()
+                            if not lot or lot == 'None':
+                                continue
+
+                            existing = TVModel.query.filter_by(brand_id=brand.id, model=model_name, lot=lot).first()
+                            if existing:
+                                skipped += 1
+                                continue
+
+                            # Пульт — ищем в справочнике или создаём
+                            remote_id = None
+                            if remote:
+                                rc = RemoteControl.query.filter_by(name=remote).first()
+                                if not rc:
+                                    rc = RemoteControl(name=remote)
+                                    db.session.add(rc)
+                                    db.session.flush()
+                                remote_id = rc.id
+
+                            tv = TVModel(
+                                brand_id=brand.id,
+                                launcher_type_id=launcher.id,
+                                model=model_name, lot=lot,
+                                remote_control_id=remote_id,
+                                software_version=sw_version or None,
+                                specifications=sw_comment or None,
+                                is_flashable=flashable,
+                                tester_name=tester or None,
+                                tester_id=current_user.id if tester else None,
+                            )
+                            db.session.add(tv)
+                            added += 1
+                else:
+                    import csv
+                    content = file.read().decode('utf-8-sig')
+                    reader  = csv.DictReader(io.StringIO(content), delimiter=';')
+                    launcher = LauncherType.query.filter_by(name=launcher_name).first()
+                    if not launcher:
+                        launcher = LauncherType(name=launcher_name)
+                        db.session.add(launcher)
+                        db.session.flush()
+                    for row in reader:
+                        brand_name = row.get('Бренд', '').strip()
+                        model_name = row.get('Модель', '').strip()
+                        lot        = row.get('Лот', '').strip()
+                        if not all([brand_name, model_name, lot]):
+                            skipped += 1
+                            continue
+                        brand = Brand.query.filter_by(name=brand_name).first()
+                        if not brand:
+                            brand = Brand(name=brand_name)
+                            db.session.add(brand)
+                            db.session.flush()
+                        existing = TVModel.query.filter_by(brand_id=brand.id, model=model_name, lot=lot).first()
+                        if existing:
+                            skipped += 1
+                            continue
+                        remote_name = row.get('Пульт', '').strip()
+                        remote_id = None
+                        if remote_name:
+                            rc = RemoteControl.query.filter_by(name=remote_name).first()
+                            if not rc:
+                                rc = RemoteControl(name=remote_name)
+                                db.session.add(rc)
+                                db.session.flush()
+                            remote_id = rc.id
+                        tv = TVModel(
+                            brand_id=brand.id, launcher_type_id=launcher.id,
+                            model=model_name, lot=lot,
+                            remote_control_id=remote_id,
+                            software_version=row.get('Версия ПО', '').strip() or None,
+                            is_flashable=row.get('Прошивается', '').strip() == 'Да',
+                            tester_name=row.get('Тестировщик', '').strip() or current_user.name,
+                            tester_id=current_user.id,
+                        )
+                        db.session.add(tv)
+                        added += 1
+
+                db.session.commit()
+                flash(f'Импортировано: {added} моделей, пропущено дублей: {skipped}', 'success')
+            except Exception as e:
+                db.session.rollback()
+                flash(f'Ошибка импорта: {e}', 'error')
+
+            return redirect(url_for('index'))
+
+        launchers = LauncherType.query.order_by(LauncherType.name).all()
+        return render_template('import_all.html')
+
+    # ── ИНЛАЙН РЕДАКТИРОВАНИЕ ──
+    @app.route('/api/inline_edit/<int:id>', methods=['POST'])
+    @login_required
+    def inline_edit(id):
+        from flask import jsonify
+        model = TVModel.query.get_or_404(id)
+        data  = request.get_json()
+        field = data.get('field')
+        value = data.get('value', '').strip()
+
+        allowed = {'software_version', 'remote_control', 'lot', 'tester_name', 'is_flashable'}
+        if field not in allowed:
+            return jsonify({'ok': False, 'error': 'Поле недоступно'}), 400
+
+        if field == 'is_flashable':
+            setattr(model, field, value in ('true', '1', True))
+        elif field == 'remote_control':
+            # Ищем пульт по имени, сохраняем FK
+            if value:
+                remote = RemoteControl.query.filter_by(name=value).first()
+                model.remote_control_id = remote.id if remote else None
+            else:
+                model.remote_control_id = None
+        else:
+            setattr(model, field, value or None)
+
+        db.session.commit()
+        return jsonify({'ok': True, 'value': getattr(model, field)})
+
+    # ── ЭКСПОРТ В EXCEL ──
+    @app.route('/export/<int:brand_id>/<int:launcher_id>')
+    @login_required
+    def export_excel(brand_id, launcher_id):
+        import io, csv
+        from flask import Response
+        brand    = Brand.query.get_or_404(brand_id)
+        launcher = LauncherType.query.get_or_404(launcher_id)
+        models   = TVModel.query.filter_by(
+            brand_id=brand_id, launcher_type_id=launcher_id
+        ).order_by(TVModel.date_added.desc()).all()
+
+        output = io.StringIO()
+        writer = csv.writer(output, delimiter=';')
+        writer.writerow([
+            'Модель', 'Лот', 'Пульт', 'Версия ПО',
+            'Прошивается', 'Тестировщик', 'Метки', 'Дата добавления'
+        ])
+        for m in models:
+            writer.writerow([
+                m.model,
+                m.lot,
+                m.remote.name if m.remote else '',
+                m.software_version or '',
+                'Да' if m.is_flashable else 'Нет',
+                m.tester_name or '',
+                ', '.join(t.name for t in m.tags),
+                m.date_added.strftime('%d.%m.%Y'),
+            ])
+
+        output.seek(0)
+        filename = f"{brand.name}_{launcher.name}.csv"
+        return Response(
+            '\ufeff' + output.getvalue(),  # BOM для Excel
+            mimetype='text/csv; charset=utf-8',
+            headers={'Content-Disposition': f'attachment; filename="{filename}"'}
+        )
+
+    # ── ИМПОРТ ИЗ CSV/EXCEL ──
+    @app.route('/import/<int:brand_id>/<int:launcher_id>', methods=['GET', 'POST'])
+    @login_required
+    def import_models(brand_id, launcher_id):
+        brand    = Brand.query.get_or_404(brand_id)
+        launcher = LauncherType.query.get_or_404(launcher_id)
+
+        if request.method == 'POST':
+            import io, csv
+            file = request.files.get('file')
+            if not file or not file.filename:
+                flash('Выберите файл', 'error')
+                return redirect(request.url)
+
+            try:
+                content = file.read().decode('utf-8-sig')  # utf-8 с BOM
+                reader  = csv.DictReader(io.StringIO(content), delimiter=';')
+                added = 0
+                skipped = 0
+                for row in reader:
+                    model_name = row.get('Модель', '').strip()
+                    lot        = row.get('Лот', '').strip()
+                    if not model_name or not lot:
+                        skipped += 1
+                        continue
+                    existing = TVModel.query.filter_by(
+                        brand_id=brand_id, model=model_name, lot=lot
+                    ).first()
+                    if existing:
+                        skipped += 1
+                        continue
+                    remote_name = row.get('Пульт', '').strip()
+                    remote_id = None
+                    if remote_name:
+                        rc = RemoteControl.query.filter_by(name=remote_name).first()
+                        if not rc:
+                            rc = RemoteControl(name=remote_name)
+                            db.session.add(rc)
+                            db.session.flush()
+                        remote_id = rc.id
+                    tv = TVModel(
+                        brand_id=brand_id,
+                        launcher_type_id=launcher_id,
+                        model=model_name,
+                        lot=lot,
+                        remote_control_id=remote_id,
+                        software_version=row.get('Версия ПО', '').strip() or None,
+                        is_flashable=row.get('Прошивается', '').strip() == 'Да',
+                        tester_name=row.get('Тестировщик', '').strip() or current_user.name,
+                        tester_id=current_user.id,
+                    )
+                    db.session.add(tv)
+                    added += 1
+
+                db.session.commit()
+                flash(f'Импортировано: {added} моделей, пропущено: {skipped}', 'success')
+            except Exception as e:
+                db.session.rollback()
+                flash(f'Ошибка импорта: {e}', 'error')
+
+            return redirect(url_for('models_list', brand_id=brand_id, launcher_id=launcher_id))
+
+        return render_template('import.html', brand=brand, launcher=launcher)

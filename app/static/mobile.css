@@ -428,3 +428,11 @@ footer { padding: 16px 0; font-size: 0.8rem; }
     box-shadow: 0 16px 40px rgba(0,0,0,0.5);
     overflow: hidden;
 }
+
+/* Скрываем кнопки экспорта/импорта на мобильном */
+@media (max-width: 768px) {
+    a[href*="export"],
+    a[href*="import"] {
+        display: none !important;
+    }
+}

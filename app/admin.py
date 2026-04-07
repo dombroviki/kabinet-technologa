@@ -289,6 +289,8 @@ def edit_remote(remote_id):
 @admin_required
 def delete_remote(remote_id):
     remote = RemoteControl.query.get_or_404(remote_id)
+    # Обнуляем FK у всех моделей где был этот пульт
+    TVModel.query.filter_by(remote_control_id=remote_id).update({'remote_control_id': None})
     db.session.delete(remote)
     db.session.commit()
     flash(f'Пульт «{remote.name}» удалён', 'success')
