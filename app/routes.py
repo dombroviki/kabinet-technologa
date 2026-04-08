@@ -442,68 +442,82 @@ def init_app(app):
 
             try:
                 added = skipped = 0
+                BATCH = 100  # коммит каждые 100 записей
+
+                # ── Кэш брендов, пультов, существующих моделей ──
+                brand_cache   = {b.name: b for b in Brand.query.all()}
+                remote_cache  = {r.name: r for r in RemoteControl.query.all()}
+                existing_set  = {
+                    (m.brand_id, m.model, m.lot)
+                    for m in db.session.query(TVModel.brand_id, TVModel.model, TVModel.lot).all()
+                }
+
+                launcher = LauncherType.query.filter_by(name=launcher_name).first()
+                if not launcher:
+                    launcher = LauncherType(name=launcher_name)
+                    db.session.add(launcher)
+                    db.session.flush()
 
                 if ext in ('xlsx', 'xls'):
                     import openpyxl
-                    wb = openpyxl.load_workbook(io.BytesIO(file.read()), data_only=True)
-
-                    launcher = LauncherType.query.filter_by(name=launcher_name).first()
-                    if not launcher:
-                        launcher = LauncherType(name=launcher_name)
-                        db.session.add(launcher)
-                        db.session.flush()
+                    wb = openpyxl.load_workbook(
+                        io.BytesIO(file.read()),
+                        data_only=True,
+                        read_only=True  # экономим память
+                    )
 
                     skip_sheets = {'Требования по качеству'}
 
                     for sheet_name in wb.sheetnames:
                         if sheet_name in skip_sheets:
                             continue
-                        ws = wb[sheet_name]
+
                         brand_name = sheet_name.strip()
-                        brand = Brand.query.filter_by(name=brand_name).first()
-                        if not brand:
+                        if brand_name not in brand_cache:
                             brand = Brand(name=brand_name)
                             db.session.add(brand)
                             db.session.flush()
+                            brand_cache[brand_name] = brand
+                        brand = brand_cache[brand_name]
 
+                        ws = wb[sheet_name]
                         for row in ws.iter_rows(min_row=5, values_only=False):
                             model_name = str(row[0].value).strip() if row[0].value else ''
-                            lot_raw    = row[1].value
+                            if not model_name or model_name == 'None':
+                                continue
+                            lot_raw = row[1].value
+                            lot = str(int(lot_raw)) if isinstance(lot_raw, float) else str(lot_raw or '').strip()
+                            if not lot or lot == 'None':
+                                continue
+
+                            if (brand.id, model_name, lot) in existing_set:
+                                skipped += 1
+                                continue
+
                             tester     = str(row[7].value).strip() if row[7].value else ''
                             flashable  = str(row[8].value).strip().lower() == 'да' if row[8].value else False
                             sw_version = str(row[9].value).strip() if row[9].value else ''
                             remote     = str(row[10].value).strip() if row[10].value else ''
 
-                            # Читаем комментарий из ячейки Версия ПО (колонка 9)
                             sw_comment = ''
-                            if row[9].comment and row[9].comment.text:
-                                raw = row[9].comment.text.strip()
-                                # Убираем служебный заголовок Excel threaded comments
-                                marker = 'Comment:'
-                                if marker in raw:
-                                    raw = raw[raw.index(marker) + len(marker):].strip()
-                                sw_comment = raw
+                            try:
+                                if row[9].comment and row[9].comment.text:
+                                    raw = row[9].comment.text.strip()
+                                    marker = 'Comment:'
+                                    if marker in raw:
+                                        raw = raw[raw.index(marker) + len(marker):].strip()
+                                    sw_comment = raw
+                            except Exception:
+                                pass
 
-                            if not model_name or model_name == 'None':
-                                continue
-                            lot = str(int(lot_raw)) if isinstance(lot_raw, float) else str(lot_raw or '').strip()
-                            if not lot or lot == 'None':
-                                continue
-
-                            existing = TVModel.query.filter_by(brand_id=brand.id, model=model_name, lot=lot).first()
-                            if existing:
-                                skipped += 1
-                                continue
-
-                            # Пульт — ищем в справочнике или создаём
                             remote_id = None
                             if remote:
-                                rc = RemoteControl.query.filter_by(name=remote).first()
-                                if not rc:
+                                if remote not in remote_cache:
                                     rc = RemoteControl(name=remote)
                                     db.session.add(rc)
                                     db.session.flush()
-                                remote_id = rc.id
+                                    remote_cache[remote] = rc
+                                remote_id = remote_cache[remote].id
 
                             tv = TVModel(
                                 brand_id=brand.id,
@@ -517,16 +531,19 @@ def init_app(app):
                                 tester_id=current_user.id if tester else None,
                             )
                             db.session.add(tv)
+                            existing_set.add((brand.id, model_name, lot))
                             added += 1
+
+                            if added % BATCH == 0:
+                                db.session.commit()
+
+                    wb.close()
+
                 else:
                     import csv
-                    content = file.read().decode('utf-8-sig')
-                    reader  = csv.DictReader(io.StringIO(content), delimiter=';')
-                    launcher = LauncherType.query.filter_by(name=launcher_name).first()
-                    if not launcher:
-                        launcher = LauncherType(name=launcher_name)
-                        db.session.add(launcher)
-                        db.session.flush()
+                    content_str = file.read().decode('utf-8-sig')
+                    reader = csv.DictReader(io.StringIO(content_str), delimiter=';')
+
                     for row in reader:
                         brand_name = row.get('Бренд', '').strip()
                         model_name = row.get('Модель', '').strip()
@@ -534,24 +551,28 @@ def init_app(app):
                         if not all([brand_name, model_name, lot]):
                             skipped += 1
                             continue
-                        brand = Brand.query.filter_by(name=brand_name).first()
-                        if not brand:
+
+                        if brand_name not in brand_cache:
                             brand = Brand(name=brand_name)
                             db.session.add(brand)
                             db.session.flush()
-                        existing = TVModel.query.filter_by(brand_id=brand.id, model=model_name, lot=lot).first()
-                        if existing:
+                            brand_cache[brand_name] = brand
+                        brand = brand_cache[brand_name]
+
+                        if (brand.id, model_name, lot) in existing_set:
                             skipped += 1
                             continue
+
                         remote_name = row.get('Пульт', '').strip()
                         remote_id = None
                         if remote_name:
-                            rc = RemoteControl.query.filter_by(name=remote_name).first()
-                            if not rc:
+                            if remote_name not in remote_cache:
                                 rc = RemoteControl(name=remote_name)
                                 db.session.add(rc)
                                 db.session.flush()
-                            remote_id = rc.id
+                                remote_cache[remote_name] = rc
+                            remote_id = remote_cache[remote_name].id
+
                         tv = TVModel(
                             brand_id=brand.id, launcher_type_id=launcher.id,
                             model=model_name, lot=lot,
@@ -562,7 +583,11 @@ def init_app(app):
                             tester_id=current_user.id,
                         )
                         db.session.add(tv)
+                        existing_set.add((brand.id, model_name, lot))
                         added += 1
+
+                        if added % BATCH == 0:
+                            db.session.commit()
 
                 db.session.commit()
                 flash(f'Импортировано: {added} моделей, пропущено дублей: {skipped}', 'success')
@@ -572,7 +597,6 @@ def init_app(app):
 
             return redirect(url_for('index'))
 
-        launchers = LauncherType.query.order_by(LauncherType.name).all()
         return render_template('import_all.html')
 
     # ── ИНЛАЙН РЕДАКТИРОВАНИЕ ──
