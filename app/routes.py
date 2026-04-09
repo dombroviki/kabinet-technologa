@@ -83,14 +83,27 @@ def init_app(app):
         q     = request.args.get('q', '').strip()
         page  = request.args.get('page', 1, type=int)
 
-        sort_map = {
-            'model':  TVModel.model,
-            'lot':    TVModel.lot,
-            'tester': TVModel.tester_name,
-            'date':   TVModel.date_added,
-        }
-        sort_col  = sort_map.get(sort, TVModel.date_added)
-        sort_expr = sort_col.asc() if order == 'asc' else sort_col.desc()
+        from sqlalchemy import func, cast, Integer
+
+        # Для лота — числовая сортировка (лот может быть "1", "2", "11", "2/2")
+        if sort == 'lot':
+            try:
+                # Пробуем числовую сортировку через CAST
+                lot_num = func.cast(
+                    func.regexp_replace(TVModel.lot, r'[^0-9].*', '', 'g'),
+                    Integer
+                )
+                sort_expr = lot_num.asc() if order == 'asc' else lot_num.desc()
+            except Exception:
+                sort_expr = TVModel.lot.asc() if order == 'asc' else TVModel.lot.desc()
+        else:
+            sort_map = {
+                'model':  TVModel.model,
+                'tester': TVModel.tester_name,
+                'date':   TVModel.date_added,
+            }
+            sort_col  = sort_map.get(sort, TVModel.date_added)
+            sort_expr = sort_col.asc() if order == 'asc' else sort_col.desc()
 
         query = TVModel.query.filter_by(brand_id=brand_id, launcher_type_id=launcher_id)
         if q:
