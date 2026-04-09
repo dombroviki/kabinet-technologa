@@ -49,7 +49,9 @@
                             </div>
                         </div>
                     {% endif %}
+                    {% if current_user.is_editor %}
                     <a href="{{ url_for('add_model') }}" class="btn btn-primary btn-sm">+ Добавить модель</a>
+                    {% endif %}
                     <div class="user-menu">
                         <div class="user-avatar" onclick="toggleUserMenu()">
                             {{ current_user.name[0].upper() }}
@@ -97,7 +99,9 @@
     <!-- Мобильное меню — вне header чтобы position:fixed работало корректно -->
     <div class="mob-menu" id="mobMenu">
         <a href="{{ url_for('index') }}" class="mob-menu-item">🏠 Главная</a>
+        {% if current_user.is_editor %}
         <a href="{{ url_for('add_model') }}" class="mob-menu-item mob-menu-primary">+ Добавить модель</a>
+        {% endif %}
         {% if current_user.is_admin %}
         <div class="mob-menu-divider"></div>
         <div class="mob-menu-section">👑 Управление</div>
@@ -381,6 +385,15 @@
                 if (this.value.trim().length >= 2) this.dispatchEvent(new Event('input'));
             });
         })();
+
+        // ── ГОРЯЧАЯ КЛАВИША / ── фокус на поиск ──
+        document.addEventListener('keydown', function(e) {
+            if (e.key === '/' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA' && document.activeElement.tagName !== 'SELECT') {
+                e.preventDefault();
+                const inp = document.getElementById('globalSearchInput') || document.getElementById('mobSearchInput');
+                if (inp) { inp.focus(); inp.select(); }
+            }
+        });
     </script>
 </body>
 </html>

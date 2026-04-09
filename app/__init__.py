@@ -22,7 +22,11 @@ def create_app(config_class=Config):
 
     @login_manager.user_loader
     def load_user(user_id):
-        return User.query.get(int(user_id))
+        user = User.query.get(int(user_id))
+        # Если пользователь деактивирован — считаем его не залогиненным
+        if user and not user.is_active_user:
+            return None
+        return user
 
     # Регистрируем blueprints
     from . import routes
@@ -33,6 +37,16 @@ def create_app(config_class=Config):
 
     from .admin import admin_bp
     app.register_blueprint(admin_bp, url_prefix='/admin')
+
+    # ── Вылет деактивированного пользователя при каждом запросе ──
+    @app.before_request
+    def check_user_active():
+        from flask_login import current_user, logout_user
+        from flask import redirect, url_for, flash
+        if current_user.is_authenticated and not current_user.is_active_user:
+            logout_user()
+            flash('Ваш аккаунт деактивирован', 'error')
+            return redirect(url_for('auth.login'))
 
     # Создаём таблицы если их нет
     with app.app_context():
@@ -49,5 +63,16 @@ def create_app(config_class=Config):
             admin.set_password('horizonttest9')
             db.session.add(admin)
             db.session.commit()
+
+    # ── Страницы ошибок ──
+    @app.errorhandler(404)
+    def not_found(e):
+        from flask import render_template
+        return render_template('errors/404.html'), 404
+
+    @app.errorhandler(500)
+    def server_error(e):
+        from flask import render_template
+        return render_template('errors/500.html'), 500
 
     return app

@@ -11,8 +11,8 @@
 <div class="models-header">
     <h1 style="margin-bottom:0;">{{ brand.name }} <span style="color:var(--muted); font-weight:400;">—</span> {{ launcher.name }}</h1>
     <div style="display:flex; gap:8px; flex-wrap:wrap;">
-        <a href="{{ url_for('export_excel', brand_id=brand.id, launcher_id=launcher.id) }}" class="btn btn-secondary">⬇ Excel</a>
-        <a href="{{ url_for('add_model', prefill_brand=brand.id, prefill_launcher=launcher.id, back_url=request.url) }}" class="btn btn-primary">+ Добавить модель</a>
+        <a href="{{ url_for('export_excel', brand_id=brand.id, launcher_id=launcher.id) }}" class="btn btn-secondary" style="margin: 10px 0;">⬇ Excel</a>
+        {% if current_user.is_editor %}<a href="{{ url_for('add_model', prefill_brand=brand.id, prefill_launcher=launcher.id, back_url=request.url) }}" class="btn btn-primary">+ Добавить модель</a>{% endif %}
     </div>
 </div>
 
@@ -110,21 +110,21 @@
             <div class="model-card-details">
                 <div class="mcd-item">
                     <span class="mcd-label">Пульт</span>
-                    <span class="mcd-value inline-edit" data-id="{{ model.id }}" data-field="remote_control">{{ model.remote.name if model.remote else '—' }}</span>
+                    <span class="mcd-value {% if current_user.is_editor %}inline-edit{% endif %}" data-id="{{ model.id }}" data-field="remote_control">{{ model.remote.name if model.remote else '—' }}</span>
                 </div>
                 <div class="mcd-item">
                     <span class="mcd-label">Тестировщик</span>
-                    <span class="mcd-value inline-edit" data-id="{{ model.id }}" data-field="tester_name">
+                    <span class="mcd-value {% if current_user.is_editor %}inline-edit{% endif %}" data-id="{{ model.id }}" data-field="tester_name">
                         {% if model.tester_name %}<span class="tester-mini">{{ model.tester_name }}</span>{% else %}—{% endif %}
                     </span>
                 </div>
                 <div class="mcd-item">
                     <span class="mcd-label">Версия ПО</span>
-                    <span class="mcd-value inline-edit" data-id="{{ model.id }}" data-field="software_version">{{ model.software_version or '—' }}</span>
+                    <span class="mcd-value {% if current_user.is_editor %}inline-edit{% endif %}" data-id="{{ model.id }}" data-field="software_version">{{ model.software_version or '—' }}</span>
                 </div>
                 <div class="mcd-item">
                     <span class="mcd-label">Лот</span>
-                    <span class="mcd-value inline-edit" data-id="{{ model.id }}" data-field="lot">{{ model.lot }}</span>
+                    <span class="mcd-value {% if current_user.is_editor %}inline-edit{% endif %}" data-id="{{ model.id }}" data-field="lot">{{ model.lot }}</span>
                 </div>
                 <div class="mcd-item">
                     <span class="mcd-label">Добавлено</span>
@@ -140,6 +140,7 @@
             <div class="model-card-actions">
                 <a href="{{ url_for('view_model', id=model.id, back_url=request.url) }}"
                    class="btn btn-secondary btn-sm">👁 Просмотр</a>
+                {% if current_user.is_editor %}
                 <a href="{{ url_for('edit_model', id=model.id, back_url=request.url) }}"
                    class="btn btn-secondary btn-sm">✏️ Редактировать</a>
                 <a href="{{ url_for('duplicate_model', id=model.id) }}"
@@ -147,6 +148,7 @@
                 <button class="btn btn-danger btn-sm"
                         data-delete-url="{{ url_for('delete_model', id=model.id) }}"
                         onclick="showDeleteModal(this.dataset.deleteUrl)">🗑 Удалить</button>
+                {% endif %}
             </div>
         </div>
 

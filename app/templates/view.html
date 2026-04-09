@@ -150,9 +150,221 @@
     {% endif %}
 </div>
 
+<!-- ── КОММЕНТАРИИ ── -->
+<div class="detail-card full-width" style="margin-top:16px;">
+    <div class="detail-label" style="margin-bottom:12px;">💬 Обсуждение</div>
+
+    <div class="comments-list" id="commentsList">
+        {% for c in comments %}
+        <div class="comment-item" id="comment-{{ c.id }}">
+            <div class="comment-meta">
+                <span class="comment-user">{{ c.user.name if c.user else 'Удалён' }}</span>
+                <span class="comment-time">{{ c.timestamp.strftime('%d.%m.%Y %H:%M') }}</span>
+                {% if current_user.id == c.user_id or current_user.is_admin %}
+                <button class="comment-delete-btn" onclick="deleteComment({{ c.id }})">✕</button>
+                {% endif %}
+            </div>
+            <div class="comment-text">{{ c.text }}</div>
+        </div>
+        {% else %}
+        <div class="comment-empty" id="commentEmpty">Комментариев пока нет. Будьте первым!</div>
+        {% endfor %}
+    </div>
+
+    <div class="comment-form" style="margin-top:14px;">
+        <textarea id="commentInput" class="comment-input" placeholder="Написать комментарий..." rows="2"></textarea>
+        <div style="display:flex; justify-content:flex-end; margin-top:8px;">
+            <button class="btn btn-primary btn-sm" onclick="submitComment()">Отправить</button>
+        </div>
+    </div>
+</div>
+
+{% if audit_log %}
+<div class="detail-card full-width" style="margin-top:16px;">
+    <div class="detail-label" style="margin-bottom:12px;">📋 История изменений</div>
+    <div class="audit-list">
+        {% for entry in audit_log %}
+        <div class="audit-item">
+            <div class="audit-meta">
+                <span class="audit-user">{{ entry.user.name if entry.user else 'Система' }}</span>
+                <span class="audit-time">{{ entry.timestamp.strftime('%d.%m.%Y %H:%M') }}</span>
+            </div>
+            <div class="audit-action">
+                {% if entry.action == 'create' %}
+                    <span class="audit-badge create">➕ Добавил модель</span>
+                {% elif entry.action == 'delete' %}
+                    <span class="audit-badge delete">🗑 Удалил модель</span>
+                {% elif entry.action in ('edit', 'inline') %}
+                    <span class="audit-badge edit">✏️ Изменил
+                        <strong>{{ entry.field }}</strong>
+                        {% if entry.old_value and entry.new_value %}
+                            {% set old_long = entry.old_value|length > 60 %}
+                            {% set new_long = entry.new_value|length > 60 %}
+                            <span class="audit-old audit-expandable" {% if old_long %}data-full="{{ entry.old_value }}" data-short="{{ entry.old_value[:60] }}…" onclick="toggleAuditText(this)"{% endif %}>
+                                {{ entry.old_value[:60] }}{% if old_long %}… <span class="audit-expand-hint">развернуть</span>{% endif %}
+                            </span>
+                            →
+                            <span class="audit-new audit-expandable" {% if new_long %}data-full="{{ entry.new_value }}" data-short="{{ entry.new_value[:60] }}…" onclick="toggleAuditText(this)"{% endif %}>
+                                {{ entry.new_value[:60] }}{% if new_long %}… <span class="audit-expand-hint">развернуть</span>{% endif %}
+                            </span>
+                        {% endif %}
+                    </span>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
 <div style="margin-top: 8px;">
     <a href="{{ back_url }}" class="btn btn-secondary">← Назад</a>
 </div>
+
+<style>
+/* ── КОММЕНТАРИИ ── */
+.comments-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.comment-item {
+    padding: 10px 14px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    transition: border-color 0.2s;
+}
+.comment-item:hover { border-color: rgba(79,142,240,0.25); }
+.comment-meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 6px;
+}
+.comment-user {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--accent);
+}
+.comment-time {
+    font-size: 0.72rem;
+    color: var(--muted);
+    flex: 1;
+}
+.comment-delete-btn {
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 0.75rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+    transition: color 0.15s, background 0.15s;
+}
+.comment-delete-btn:hover { color: var(--danger); background: rgba(255,107,107,0.1); }
+.comment-text {
+    font-size: 0.88rem;
+    color: var(--text);
+    white-space: pre-wrap;
+    line-height: 1.5;
+}
+.comment-empty {
+    font-size: 0.85rem;
+    color: var(--muted);
+    text-align: center;
+    padding: 16px 0;
+}
+/* Скрываем надпись если есть хоть один комментарий */
+.comment-item ~ .comment-empty,
+.comment-item + .comment-empty { display: none; }
+.comment-input {
+    width: 100%;
+    background: var(--surface2);
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    color: var(--text);
+    font-size: 0.88rem;
+    font-family: 'DM Sans', sans-serif;
+    padding: 10px 14px;
+    outline: none;
+    resize: vertical;
+    transition: border-color 0.2s;
+    box-sizing: border-box;
+}
+.comment-input:focus { border-color: var(--accent); }
+
+.audit-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.audit-item {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 12px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    flex-wrap: wrap;
+}
+.audit-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex-shrink: 0;
+    min-width: 130px;
+}
+.audit-user {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text);
+}
+.audit-time {
+    font-size: 0.72rem;
+    color: var(--muted);
+}
+.audit-action {
+    flex: 1;
+    font-size: 0.83rem;
+    color: var(--text2);
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.audit-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+.audit-old {
+    background: rgba(255,107,107,0.12);
+    color: var(--danger);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 0.78rem;
+}
+.audit-new {
+    background: rgba(52,200,122,0.12);
+    color: var(--success);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 0.78rem;
+}
+.audit-expandable[data-full] {
+    cursor: pointer;
+    text-decoration: underline dotted;
+}
+.audit-expand-hint {
+    font-size: 0.7rem;
+    opacity: 0.6;
+    margin-left: 2px;
+}
+</style>
 
 <!-- Лайтбокс -->
 <div id="lightbox" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.9); z-index:2000; align-items:center; justify-content:center; cursor:zoom-out;">
@@ -271,7 +483,16 @@
         document.body.style.overflow = '';
     }
     document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape') closeLightbox();
+        if (e.key === 'Escape') {
+            closeLightbox();
+            closeCommentDeleteModal();
+        }
+    });
+
+    // закрытие модала по фону — вешаем после загрузки DOM
+    document.addEventListener('click', function(e) {
+        const modal = document.getElementById('commentDeleteModal');
+        if (modal && e.target === modal) closeCommentDeleteModal();
     });
 
     // Копирование
@@ -288,6 +509,100 @@
         });
     }
 
+    // Разворачивание текста в истории изменений
+    function toggleAuditText(el) {
+        const full  = el.dataset.full;
+        const short = el.dataset.short;
+        const hint  = el.querySelector('.audit-expand-hint');
+        if (el.dataset.expanded === '1') {
+            el.childNodes[0].textContent = short;
+            if (hint) hint.textContent = 'развернуть';
+            el.dataset.expanded = '0';
+        } else {
+            el.childNodes[0].textContent = full;
+            if (hint) hint.textContent = 'свернуть';
+            el.dataset.expanded = '1';
+        }
+    }
+
+    // ── КОММЕНТАРИИ ──
+    const MODEL_ID = {{ model.id }};
+
+    // Скрываем надпись "нет комментариев" если комменты уже есть
+    (function() {
+        const empty = document.getElementById('commentEmpty');
+        if (empty && document.querySelectorAll('.comment-item').length > 0) {
+            empty.remove();
+        }
+    })();
+
+    function submitComment() {
+        const input = document.getElementById('commentInput');
+        const text = input.value.trim();
+        if (!text) return;
+
+        fetch(`/comment/${MODEL_ID}`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({text})
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (!data.ok) return;
+            const empty = document.getElementById('commentEmpty');
+            if (empty) empty.style.display = 'none';
+
+            const list = document.getElementById('commentsList');
+            const div = document.createElement('div');
+            div.className = 'comment-item';
+            div.id = `comment-${data.id}`;
+            div.innerHTML = `
+                <div class="comment-meta">
+                    <span class="comment-user">${data.user}</span>
+                    <span class="comment-time">${data.time}</span>
+                    <button class="comment-delete-btn" onclick="deleteComment(${data.id})">✕</button>
+                </div>
+                <div class="comment-text">${data.text.replace(/\n/g, '<br>')}</div>
+            `;
+            list.appendChild(div);
+            input.value = '';
+            input.style.height = 'auto';
+        });
+    }
+
+    let _deleteCommentId = null;
+
+    function deleteComment(id) {
+        _deleteCommentId = id;
+        document.getElementById('commentDeleteModal').style.display = 'flex';
+    }
+
+    function confirmDeleteComment() {
+        if (!_deleteCommentId) return;
+        fetch(`/comment/${_deleteCommentId}/delete`, {method: 'POST'})
+        .then(r => r.json())
+        .then(data => {
+            if (data.ok) {
+                document.getElementById(`comment-${_deleteCommentId}`).remove();
+                if (!document.querySelector('.comment-item')) {
+                    const empty = document.getElementById('commentEmpty');
+                    if (empty) empty.style.display = '';
+                }
+            }
+            closeCommentDeleteModal();
+        });
+    }
+
+    function closeCommentDeleteModal() {
+        _deleteCommentId = null;
+        document.getElementById('commentDeleteModal').style.display = 'none';
+    }
+
+    // Enter — отправить, Shift+Enter — перенос строки
+    document.getElementById('commentInput').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitComment(); }
+    });
+
     // Ленивая загрузка через IntersectionObserver (fallback для старых браузеров)
     if ('IntersectionObserver' in window) {
         const lazyImgs = document.querySelectorAll('img.lazy-photo');
@@ -303,4 +618,16 @@
         lazyImgs.forEach(function(img) { observer.observe(img); });
     }
 </script>
+<!-- Модал удаления комментария -->
+<div id="commentDeleteModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:1000; align-items:center; justify-content:center; padding:16px;">
+    <div style="background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:24px; max-width:360px; width:100%; box-shadow:0 20px 60px rgba(0,0,0,0.5);">
+        <div style="font-size:1.1rem; font-weight:700; color:var(--text); margin-bottom:8px;">Удалить комментарий?</div>
+        <div style="font-size:0.85rem; color:var(--muted); margin-bottom:20px;">Это действие нельзя отменить.</div>
+        <div style="display:flex; gap:10px; justify-content:flex-end;">
+            <button onclick="closeCommentDeleteModal()" class="btn btn-secondary btn-sm" style="min-width:90px;">Отмена</button>
+            <button onclick="confirmDeleteComment()" class="btn btn-danger btn-sm" style="min-width:90px;">Удалить</button>
+        </div>
+    </div>
+</div>
+
 {% endblock %}

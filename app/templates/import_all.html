@@ -28,6 +28,19 @@
         </a>
     </div>
 
+    <!-- Синхронизация с Google Sheets -->
+    <div style="background:var(--surface2); border:1px solid var(--border); border-radius:12px; padding:16px 20px; margin-bottom:24px;">
+        <div style="font-size:0.8rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.1em; margin-bottom:10px;">🔄 Синхронизация с Google Sheets</div>
+        <p style="font-size:0.85rem; color:var(--text2); margin-bottom:12px;">
+            Подтягивает новые модели из таблицы «Подготовка производства». Существующие записи не изменяются.
+        </p>
+        <form method="POST" action="{{ url_for('sync_sheets') }}">
+            <button type="submit" class="btn btn-primary btn-sm">🔄 Синхронизировать с Google Sheets</button>
+        </form>
+    </div>
+
+
+
     <form method="POST" enctype="multipart/form-data">
         <div class="form-group">
             <label>Файл (.xlsx или .csv)</label>

@@ -33,6 +33,8 @@ def create_user():
         name     = request.form.get('name', '').strip()
         password = request.form.get('password', '').strip()
         role     = request.form.get('role', 'user')
+        if role not in ('admin', 'user', 'viewer'):
+            role = 'user'
 
         if not email or not name:
             flash('Заполните email и имя', 'error')
@@ -63,7 +65,8 @@ def edit_user(user_id):
     if request.method == 'POST':
         user.name  = request.form.get('name', '').strip()
         user.email = request.form.get('email', '').strip().lower()
-        user.role  = request.form.get('role', 'user')
+        role = request.form.get('role', 'user')
+        user.role  = role if role in ('admin', 'user', 'viewer') else 'user'
         # is_active_user не трогаем — управляется кнопкой 🔒/🔓 в таблице пользователей
 
         new_password = request.form.get('password', '').strip()

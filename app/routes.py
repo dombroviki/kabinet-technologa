@@ -3,7 +3,7 @@ from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
 import os
 from . import db
-from .models import TVModel, TVModelPhoto, TVModelFirmware, Brand, LauncherType, User, RemoteControl, Tag
+from .models import TVModel, TVModelPhoto, TVModelFirmware, Brand, LauncherType, User, RemoteControl, Tag, AuditLog, ModelComment
 from datetime import datetime
 
 ALLOWED_PHOTO    = {'png', 'jpg', 'jpeg', 'gif'}
@@ -29,6 +29,32 @@ def delete_file(filename, folder):
         filepath = os.path.join(current_app.config['UPLOAD_FOLDER'], folder, filename)
         if os.path.exists(filepath):
             os.remove(filepath)
+
+def log_action(action, tv_model, field=None, old_value=None, new_value=None):
+    """Записывает действие в журнал изменений"""
+    try:
+        entry = AuditLog(
+            tv_model_id=tv_model.id if tv_model else None,
+            user_id=current_user.id,
+            action=action,
+            model_name=tv_model.model if tv_model else None,
+            field=field,
+            old_value=str(old_value) if old_value is not None else None,
+            new_value=str(new_value) if new_value is not None else None,
+        )
+        db.session.add(entry)
+    except Exception:
+        pass  # лог не должен ломать основную логику
+
+def editor_required(f):
+    from functools import wraps
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not current_user.is_editor:
+            flash('Недостаточно прав для этого действия', 'error')
+            return redirect(url_for('index'))
+        return f(*args, **kwargs)
+    return decorated
 
 def init_app(app):
 
@@ -87,6 +113,7 @@ def init_app(app):
 
     @app.route('/add', methods=['GET', 'POST'])
     @login_required
+    @editor_required
     def add_model():
         if request.method == 'POST':
             brand_id       = request.form.get('brand_id')
@@ -143,6 +170,7 @@ def init_app(app):
             tag_ids = request.form.getlist('tags')
             tv.tags = Tag.query.filter(Tag.id.in_([int(i) for i in tag_ids if i])).all()
 
+            log_action('create', tv)
             db.session.commit()
             flash('Модель успешно добавлена', 'success')
             back_url = request.form.get('back_url', '')
@@ -181,21 +209,38 @@ def init_app(app):
         model = TVModel.query.get_or_404(id)
         back_url = request.args.get('back_url') or request.referrer or \
                    url_for('models_list', brand_id=model.brand_id, launcher_id=model.launcher_type_id)
-        return render_template('view.html', model=model, back_url=back_url)
+        audit_log = AuditLog.query.filter_by(tv_model_id=id)\
+            .order_by(AuditLog.timestamp.desc()).limit(30).all()
+        comments = ModelComment.query.filter_by(tv_model_id=id)\
+            .order_by(ModelComment.timestamp.asc()).all()
+        return render_template('view.html', model=model, back_url=back_url,
+                               audit_log=audit_log, comments=comments)
 
     @app.route('/edit/<int:id>', methods=['GET', 'POST'])
     @login_required
+    @editor_required
     def edit_model(id):
         model = TVModel.query.get_or_404(id)
 
         if request.method == 'POST':
+            # Снимаем старые значения ДО изменения
+            _old = {
+                'model':            model.model,
+                'lot':              model.lot,
+                'software_version': model.software_version,
+                'tester_name':      model.tester_name,
+                'is_flashable':     model.is_flashable,
+                'remote_control_id':model.remote_control_id,
+                'specifications':   model.specifications,
+            }
+
             model.brand_id         = request.form.get('brand_id')
             model.launcher_type_id = request.form.get('launcher_type_id')
             model.model            = request.form.get('model')
             model.lot              = request.form.get('lot')
             model.specifications   = request.form.get('specifications')
             model.remote_control_id = int(request.form.get('remote_control')) if request.form.get('remote_control') else None
-            model.software_version = request.form.get('software_version')   # ← НОВОЕ
+            model.software_version = request.form.get('software_version')
             model.tester_name      = request.form.get('tester_name') or current_user.name
             model.is_flashable     = request.form.get('is_flashable') == 'on'
 
@@ -248,6 +293,21 @@ def init_app(app):
             tag_ids = request.form.getlist('tags')
             model.tags = Tag.query.filter(Tag.id.in_([int(i) for i in tag_ids if i])).all()
 
+            # Лог изменений — сравниваем старые и новые значения
+            _new = {
+                'model':            model.model,
+                'lot':              model.lot,
+                'software_version': model.software_version,
+                'tester_name':      model.tester_name,
+                'is_flashable':     model.is_flashable,
+                'remote_control_id':model.remote_control_id,
+                'specifications':   model.specifications,
+            }
+            for field_key, old_v in _old.items():
+                new_v = _new[field_key]
+                if str(old_v or '') != str(new_v or ''):
+                    log_action('edit', model, field=field_key, old_value=old_v, new_value=new_v)
+
             db.session.commit()
             flash('Модель обновлена', 'success')
             back_url = request.form.get('back_url', '')
@@ -266,6 +326,7 @@ def init_app(app):
 
     @app.route('/duplicate/<int:id>')
     @login_required
+    @editor_required
     def duplicate_model(id):
         src = TVModel.query.get_or_404(id)
         # Не создаём запись — просто открываем форму добавления с предзаполненными данными
@@ -284,9 +345,11 @@ def init_app(app):
 
     @app.route('/delete/<int:id>', methods=['POST'])
     @login_required
+    @editor_required
     def delete_model(id):
         model = TVModel.query.get_or_404(id)
         brand_id, launcher_id = model.brand_id, model.launcher_type_id
+        log_action('delete', model)
         for photo in model.photos:
             delete_file(photo.filename, 'photos')
         delete_file(model.firmware_filename, 'firmware')
@@ -318,6 +381,7 @@ def init_app(app):
 
     @app.route('/delete_firmware/<int:fw_id>', methods=['POST'])
     @login_required
+    @editor_required
     def delete_firmware(fw_id):
         fw = TVModelFirmware.query.get_or_404(fw_id)
         model_id = fw.tv_model_id
@@ -362,6 +426,221 @@ def init_app(app):
             'sw':       m.software_version or '',
             'url':      url_for('view_model', id=m.id),
         } for m in results])
+
+    # ── СИНХРОНИЗАЦИЯ С GOOGLE SHEETS ──
+    @app.route('/sync/sheets', methods=['POST'])
+    @login_required
+    @editor_required
+    def sync_sheets():
+        import os
+        try:
+            import gspread
+            from google.oauth2.service_account import Credentials
+        except ImportError:
+            flash('Установите: pip install gspread google-auth', 'error')
+            return redirect(url_for('import_all'))
+
+        creds_file = current_app.config.get('SHEETS_CREDENTIALS_FILE')
+        sheet_id   = current_app.config.get('SHEETS_SPREADSHEET_ID')
+
+        if not creds_file or not os.path.exists(creds_file):
+            flash('Файл google_credentials.json не найден в корне проекта', 'error')
+            return redirect(url_for('import_all'))
+
+        try:
+            scopes = ['https://www.googleapis.com/auth/spreadsheets.readonly']
+            creds  = Credentials.from_service_account_file(creds_file, scopes=scopes)
+            gc     = gspread.authorize(creds)
+            wb     = gc.open_by_key(sheet_id)
+        except Exception as e:
+            flash(f'Ошибка подключения к Google Sheets: {e}', 'error')
+            return redirect(url_for('import_all'))
+
+        launcher_name = 'собственный'
+        launcher = LauncherType.query.filter_by(name=launcher_name).first()
+        if not launcher:
+            launcher = LauncherType(name=launcher_name)
+            db.session.add(launcher)
+            db.session.flush()
+
+        brand_cache  = {b.name: b for b in Brand.query.all()}
+        remote_cache = {r.name: r for r in RemoteControl.query.all()}
+        existing_set = {
+            (m.brand_id, m.model, m.lot)
+            for m in db.session.query(TVModel.brand_id, TVModel.model, TVModel.lot).all()
+        }
+
+        skip_sheets = {'Требования по качеству'}
+        added = skipped = 0
+
+        try:
+            for sheet in wb.worksheets():
+                if sheet.title in skip_sheets:
+                    continue
+
+                brand_name = sheet.title.strip()
+                if brand_name not in brand_cache:
+                    brand = Brand(name=brand_name)
+                    db.session.add(brand)
+                    db.session.flush()
+                    brand_cache[brand_name] = brand
+                brand = brand_cache[brand_name]
+
+                all_rows = sheet.get_all_values()
+                if len(all_rows) < 4:
+                    continue
+
+                # Определяем колонки по заголовкам строк 3-4
+                col_tester = 7; col_flash = 8; col_sw = 9; col_remote = 10
+                for hi in [2, 3]:
+                    if hi >= len(all_rows):
+                        continue
+                    for ci, val in enumerate(all_rows[hi]):
+                        v = val.strip().lower()
+                        if 'разработчик ртп' in v: col_tester = ci
+                        elif v in ('шьём', 'шьем'): col_flash = ci
+                        elif 'версия по' in v: col_sw = ci
+                        elif v == 'stb': col_remote = ci
+
+                def _gs(r, idx):
+                    return r[idx].strip() if len(r) > idx else ''
+
+                for row in all_rows[4:]:
+                    if not row:
+                        continue
+                    model_name = _gs(row, 0)
+                    if not model_name or model_name == 'None':
+                        continue
+
+                    lot_raw = _gs(row, 1)
+                    if not lot_raw:
+                        continue
+                    try:
+                        lot = str(int(float(lot_raw))) if '.' in lot_raw and lot_raw.replace('.', '').isdigit() else lot_raw
+                    except Exception:
+                        lot = lot_raw
+
+                    if (brand.id, model_name, lot) in existing_set:
+                        skipped += 1
+                        continue
+
+                    tester    = _gs(row, col_tester)
+                    flashable = _gs(row, col_flash).lower() == 'да'
+                    sw        = _gs(row, col_sw)
+                    remote    = _gs(row, col_remote)
+
+                    remote_id = None
+                    if remote:
+                        if remote not in remote_cache:
+                            rc = RemoteControl(name=remote)
+                            db.session.add(rc)
+                            db.session.flush()
+                            remote_cache[remote] = rc
+                        remote_id = remote_cache[remote].id
+
+                    tv = TVModel(
+                        brand_id=brand.id,
+                        launcher_type_id=launcher.id,
+                        model=model_name, lot=lot,
+                        remote_control_id=remote_id,
+                        software_version=sw or None,
+                        is_flashable=flashable,
+                        tester_name=tester or None,
+                        tester_id=current_user.id if tester else None,
+                    )
+                    db.session.add(tv)
+                    existing_set.add((brand.id, model_name, lot))
+                    log_action('create', tv)
+                    added += 1
+
+                    if added % 100 == 0:
+                        db.session.commit()
+
+            db.session.commit()
+            flash(f'Синхронизация завершена: добавлено {added}, пропущено дублей {skipped}', 'success')
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Ошибка синхронизации: {e}', 'error')
+
+        return redirect(url_for('index'))
+
+    # ── КОММЕНТАРИИ К МОДЕЛИ ──
+    @app.route('/comment/<int:model_id>', methods=['POST'])
+    @login_required
+    def add_comment(model_id):
+        from flask import jsonify
+        model = TVModel.query.get_or_404(model_id)
+        text = request.get_json().get('text', '').strip()
+        if not text:
+            return jsonify({'ok': False, 'error': 'Пустой комментарий'}), 400
+        comment = ModelComment(
+            tv_model_id=model_id,
+            user_id=current_user.id,
+            text=text
+        )
+        db.session.add(comment)
+        db.session.commit()
+        return jsonify({
+            'ok': True,
+            'id': comment.id,
+            'text': comment.text,
+            'user': current_user.name,
+            'time': comment.timestamp.strftime('%d.%m.%Y %H:%M'),
+            'can_delete': True
+        })
+
+    @app.route('/comment/<int:comment_id>/delete', methods=['POST'])
+    @login_required
+    def delete_comment(comment_id):
+        from flask import jsonify
+        comment = ModelComment.query.get_or_404(comment_id)
+        # Удалить может автор или админ
+        if comment.user_id != current_user.id and not current_user.is_admin:
+            return jsonify({'ok': False, 'error': 'Нет прав'}), 403
+        db.session.delete(comment)
+        db.session.commit()
+        return jsonify({'ok': True})
+
+        creds_file = current_app.config.get('SHEETS_CREDENTIALS_FILE')
+        if not creds_file or not os.path.exists(creds_file):
+            flash('Файл google_credentials.json не найден', 'error')
+            return redirect(url_for('import_all'))
+
+        # Путь к БД
+        db_url = current_app.config.get('SQLALCHEMY_DATABASE_URI', '')
+        if db_url.startswith('sqlite:///'):
+            db_path = db_url.replace('sqlite:///', '')
+            if not os.path.isabs(db_path):
+                db_path = os.path.join(current_app.config['BASE_DIR'], 'instance', db_path)
+        else:
+            flash('Резервное копирование поддерживается только для SQLite', 'error')
+            return redirect(url_for('import_all'))
+
+        if not os.path.exists(db_path):
+            flash(f'База данных не найдена: {db_path}', 'error')
+            return redirect(url_for('import_all'))
+
+        try:
+            scopes  = ['https://www.googleapis.com/auth/drive.file']
+            creds   = Credentials.from_service_account_file(creds_file, scopes=scopes)
+            service = build('drive', 'v3', credentials=creds)
+
+            from datetime import datetime
+            filename = f"backup_{datetime.now().strftime('%Y-%m-%d_%H-%M')}.db"
+
+            # Используем существующую папку KabinetBackups
+            folder_id = '16dPltE3FZa6UKDeBK2ExAoLufPHaeU_Z'
+
+            # Загружаем файл
+            file_meta = {'name': filename, 'parents': [folder_id]}
+            media = MediaFileUpload(db_path, mimetype='application/octet-stream')
+            service.files().create(body=file_meta, media_body=media, fields='id').execute()
+
+            flash(f'Резервная копия «{filename}» сохранена на Google Drive в папку KabinetBackups', 'success')
+        except Exception as e:
+            flash(f'Ошибка резервного копирования: {e}', 'error')
+
+        return redirect(url_for('import_all'))
 
     @app.route('/search')
     @login_required
@@ -429,6 +708,7 @@ def init_app(app):
     # ── ГЛОБАЛЬНЫЙ ИМПОРТ ──
     @app.route('/import/all', methods=['GET', 'POST'])
     @login_required
+    @editor_required
     def import_all():
         if request.method == 'POST':
             import io
@@ -460,11 +740,8 @@ def init_app(app):
 
                 if ext in ('xlsx', 'xls'):
                     import openpyxl
-                    wb = openpyxl.load_workbook(
-                        io.BytesIO(file.read()),
-                        data_only=True,
-                        read_only=True  # экономим память
-                    )
+                    file_bytes = io.BytesIO(file.read())
+                    wb = openpyxl.load_workbook(file_bytes, data_only=True)
 
                     skip_sheets = {'Требования по качеству'}
 
@@ -481,12 +758,56 @@ def init_app(app):
                         brand = brand_cache[brand_name]
 
                         ws = wb[sheet_name]
+
+                        # Сохраняем цвет вкладки
+                        try:
+                            tab_color = ws.sheet_properties.tabColor
+                            if tab_color and not brand_cache[brand_name].tab_color:
+                                brand_cache[brand_name].tab_color = tab_color.rgb
+                        except Exception:
+                            pass
+
+                        # Определяем индексы колонок по заголовкам строк 3-4
+                        col_tester = 7
+                        col_flash  = 8
+                        col_sw     = 9
+                        col_remote = 10
+                        try:
+                            for hr in ws.iter_rows(min_row=3, max_row=4, values_only=False):
+                                for ci, hc in enumerate(hr):
+                                    v = str(hc.value or '').strip().lower()
+                                    if 'разработчик ртп' in v:
+                                        col_tester = ci
+                                    elif v == 'шьём' or v == 'шьем':
+                                        col_flash = ci
+                                    elif 'версия по' in v or 'версия пo' in v:
+                                        col_sw = ci
+                                    elif v == 'stb':
+                                        col_remote = ci
+                        except Exception:
+                            pass
+
+                        def _cell_str(r, idx):
+                            return str(r[idx].value).strip() if len(r) > idx and r[idx].value else ''
+
                         for row in ws.iter_rows(min_row=5, values_only=False):
                             model_name = str(row[0].value).strip() if row[0].value else ''
                             if not model_name or model_name == 'None':
                                 continue
-                            lot_raw = row[1].value
-                            lot = str(int(lot_raw)) if isinstance(lot_raw, float) else str(lot_raw or '').strip()
+                            lot_raw  = row[1].value
+                            lot_cell = row[1]
+                            if isinstance(lot_raw, float):
+                                lot = str(int(lot_raw))
+                            elif hasattr(lot_raw, 'strftime'):
+                                fmt = getattr(lot_cell, 'number_format', '') or ''
+                                if 'd/m' in fmt.lower():
+                                    lot = f"{lot_raw.day}/{lot_raw.month}"
+                                elif 'm/d' in fmt.lower():
+                                    lot = f"{lot_raw.month}/{lot_raw.day}"
+                                else:
+                                    lot = f"{lot_raw.day}/{lot_raw.month}"
+                            else:
+                                lot = str(lot_raw or '').strip()
                             if not lot or lot == 'None':
                                 continue
 
@@ -494,15 +815,15 @@ def init_app(app):
                                 skipped += 1
                                 continue
 
-                            tester     = str(row[7].value).strip() if row[7].value else ''
-                            flashable  = str(row[8].value).strip().lower() == 'да' if row[8].value else False
-                            sw_version = str(row[9].value).strip() if row[9].value else ''
-                            remote     = str(row[10].value).strip() if row[10].value else ''
+                            tester     = _cell_str(row, col_tester)
+                            flashable  = _cell_str(row, col_flash).lower() == 'да'
+                            sw_version = _cell_str(row, col_sw)
+                            remote     = _cell_str(row, col_remote)
 
                             sw_comment = ''
                             try:
-                                if row[9].comment and row[9].comment.text:
-                                    raw = row[9].comment.text.strip()
+                                if len(row) > col_sw and row[col_sw].comment and row[col_sw].comment.text:
+                                    raw = row[col_sw].comment.text.strip()
                                     marker = 'Comment:'
                                     if marker in raw:
                                         raw = raw[raw.index(marker) + len(marker):].strip()
@@ -602,6 +923,7 @@ def init_app(app):
     # ── ИНЛАЙН РЕДАКТИРОВАНИЕ ──
     @app.route('/api/inline_edit/<int:id>', methods=['POST'])
     @login_required
+    @editor_required
     def inline_edit(id):
         from flask import jsonify
         model = TVModel.query.get_or_404(id)
@@ -625,8 +947,137 @@ def init_app(app):
         else:
             setattr(model, field, value or None)
 
+        log_action('inline', model, field=field, old_value=None, new_value=value)
         db.session.commit()
         return jsonify({'ok': True, 'value': getattr(model, field)})
+
+    # ── ГЛОБАЛЬНЫЙ ЭКСПОРТ В XLSX (формат Подготовка производства) ──
+    @app.route('/export/production')
+    @login_required
+    def export_production():
+        import io
+        from flask import Response
+        import openpyxl
+        from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
+        from openpyxl.utils import get_column_letter
+
+        wb = openpyxl.Workbook()
+        wb.remove(wb.active)  # удаляем пустой лист по умолчанию
+
+        brands = Brand.query.order_by(Brand.name).all()
+
+        # Стили заголовков
+        header_font      = Font(name='Calibri', bold=True, size=10)
+        header_fill      = PatternFill('solid', fgColor='D9D9D9')
+        center_align     = Alignment(horizontal='center', vertical='center', wrap_text=True)
+        left_align       = Alignment(horizontal='left', vertical='center', wrap_text=False)
+        thin_border_side = Side(style='thin')
+        thin_border      = Border(
+            left=thin_border_side, right=thin_border_side,
+            top=thin_border_side, bottom=thin_border_side
+        )
+
+        for brand in brands:
+            models = TVModel.query.filter_by(brand_id=brand.id)                .order_by(TVModel.model, TVModel.lot).all()
+            if not models:
+                continue
+
+            ws = wb.create_sheet(title=brand.name[:31])
+
+            # Цвет вкладки
+            if brand.tab_color:
+                ws.sheet_properties.tabColor = brand.tab_color
+
+            # ── Строка 1: заголовок бренда ──
+            ws.merge_cells('A1:L1')
+            ws['A1'] = f'Подготовка производства {brand.name}'
+            ws['A1'].font      = Font(name='Calibri', bold=True, size=12)
+            ws['A1'].alignment = center_align
+
+            # ── Строка 2: пустая ──
+
+            # ── Строка 3: заголовки колонок верхний уровень ──
+            headers_row3 = [
+                'Модель \nтелевизора', 'Лот', 'Слич.вед.', 'SOP',
+                'Номер ТП', 'Разработка ТП по сборке', '', 'Разработчик РТП',
+                'Программное обеспечение', '', '', ''
+            ]
+            for col, val in enumerate(headers_row3, 1):
+                cell = ws.cell(row=3, column=col, value=val)
+                cell.font      = header_font
+                cell.fill      = header_fill
+                cell.alignment = center_align
+                cell.border    = thin_border
+
+            # ── Строка 4: подзаголовки ──
+            headers_row4 = [
+                '', '', '', '', '',
+                'Разработчик', 'Статус', '',
+                'Шьём', 'Версия ПО', 'STB', 'Macros'
+            ]
+            for col, val in enumerate(headers_row4, 1):
+                cell = ws.cell(row=4, column=col, value=val)
+                cell.font      = header_font
+                cell.fill      = header_fill
+                cell.alignment = center_align
+                cell.border    = thin_border
+
+            # Объединяем ячейки в шапке (как в оригинале)
+            for col in [1, 2, 3, 4, 5, 8]:
+                ws.merge_cells(start_row=3, start_column=col, end_row=4, end_column=col)
+            ws.merge_cells(start_row=3, start_column=6, end_row=3, end_column=7)
+            ws.merge_cells(start_row=3, start_column=9, end_row=3, end_column=12)
+
+            # ── Данные с 5-й строки ──
+            data_font = Font(name='Calibri', size=10, bold=True)
+            for tv in models:
+                row_data = [
+                    tv.model,                                    # A: Модель
+                    tv.lot,                                      # B: Лот
+                    'Да',                                        # C: Слич.вед.
+                    'Да',                                        # D: SOP
+                    '',                                          # E: Номер ТП
+                    '',                                          # F: Разработчик
+                    '',                                          # G: Статус
+                    tv.tester_name or '',                        # H: Разработчик РТП
+                    'Да' if tv.is_flashable else 'Нет',          # I: Шьём
+                    tv.software_version or '',                   # J: Версия ПО
+                    tv.remote.name if tv.remote else '',         # K: STB
+                    '',                                          # L: Macros
+                ]
+                ws.append(row_data)
+                last_row = ws.max_row
+                for col in range(1, 13):
+                    cell = ws.cell(row=last_row, column=col)
+                    cell.font      = data_font
+                    cell.alignment = left_align
+                    cell.border    = thin_border
+
+                # Записываем specifications как комментарий в ячейку J (Версия ПО)
+                if tv.specifications:
+                    from openpyxl.comments import Comment
+                    comment = Comment(tv.specifications, tv.tester_name or 'Кабинет технолога')
+                    comment.width  = 300
+                    comment.height = 120
+                    ws.cell(row=last_row, column=10).comment = comment
+
+            # Ширина колонок
+            col_widths = [20, 8, 10, 8, 14, 16, 10, 18, 8, 20, 16, 14]
+            for i, width in enumerate(col_widths, 1):
+                ws.column_dimensions[get_column_letter(i)].width = width
+
+            # Высота строк шапки
+            ws.row_dimensions[3].height = 30
+            ws.row_dimensions[4].height = 20
+
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+        from flask import make_response
+        resp = make_response(output.getvalue())
+        resp.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        resp.headers['Content-Disposition'] = 'attachment; filename="production_export.xlsx"'
+        return resp
 
     # ── ЭКСПОРТ В EXCEL ──
     @app.route('/export/<int:brand_id>/<int:launcher_id>')
