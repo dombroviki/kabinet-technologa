@@ -598,9 +598,9 @@
         document.getElementById('commentDeleteModal').style.display = 'none';
     }
 
-    // Enter — отправить, Shift+Enter — перенос строки
+    // Ctrl+Enter — отправить, Enter — перенос строки
     document.getElementById('commentInput').addEventListener('keydown', function(e) {
-        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitComment(); }
+        if (e.key === 'Enter' && e.ctrlKey) { e.preventDefault(); submitComment(); }
     });
 
     // Ленивая загрузка через IntersectionObserver (fallback для старых браузеров)

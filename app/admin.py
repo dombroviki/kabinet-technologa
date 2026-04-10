@@ -1,6 +1,7 @@
 from flask import Blueprint, render_template, redirect, url_for, request, flash
 from flask_login import login_required, current_user
 from functools import wraps
+from sqlalchemy import func
 from . import db
 from .models import User, Brand, LauncherType, TVModel, RemoteControl, Tag
 
@@ -117,8 +118,14 @@ def delete_user(user_id):
 @login_required
 @admin_required
 def brands():
-    all_brands = Brand.query.order_by(Brand.name).all()
-    return render_template('admin/brands.html', brands=all_brands)
+    brands_data = (
+        db.session.query(Brand, func.count(TVModel.id).label('model_count'))
+        .outerjoin(TVModel, TVModel.brand_id == Brand.id)
+        .group_by(Brand.id)
+        .order_by(Brand.name)
+        .all()
+    )
+    return render_template('admin/brands.html', brands=brands_data)
 
 
 @admin_bp.route('/brands/create', methods=['GET', 'POST'])

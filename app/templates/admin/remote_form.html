@@ -12,6 +12,7 @@
 
 <div class="form-card" style="max-width:480px;">
     <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="form-group">
             <label for="name">Название пульта *</label>
             <input type="text" id="name" name="name"

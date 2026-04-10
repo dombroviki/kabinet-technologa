@@ -16,6 +16,7 @@
 
 <div class="form-card">
     <form method="POST" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <!-- Передаём back_url через форму, чтобы после сохранения его не потерять -->
         <input type="hidden" name="back_url" value="{{ back_url }}">
 

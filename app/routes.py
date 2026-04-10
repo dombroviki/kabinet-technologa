@@ -2,7 +2,7 @@ from flask import render_template, redirect, url_for, request, flash, current_ap
 from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
 import os
-from . import db
+from . import db, csrf
 from .models import TVModel, TVModelPhoto, TVModelFirmware, Brand, LauncherType, User, RemoteControl, Tag, AuditLog, ModelComment
 from datetime import datetime
 
@@ -61,7 +61,10 @@ def init_app(app):
     @app.route('/')
     @login_required
     def index():
-        brands = Brand.query.order_by(Brand.name).all()
+        from sqlalchemy.orm import joinedload
+        brands = Brand.query.options(
+            joinedload(Brand.tv_models)
+        ).order_by(Brand.name).all()
         return render_template('index.html', brands=brands)
 
     @app.route('/brand/<int:brand_id>')
@@ -105,7 +108,12 @@ def init_app(app):
             sort_col  = sort_map.get(sort, TVModel.date_added)
             sort_expr = sort_col.asc() if order == 'asc' else sort_col.desc()
 
-        query = TVModel.query.filter_by(brand_id=brand_id, launcher_type_id=launcher_id)
+        from sqlalchemy.orm import joinedload
+        query = TVModel.query.options(
+            joinedload(TVModel.tags),
+            joinedload(TVModel.remote),
+            joinedload(TVModel.tester),
+        ).filter_by(brand_id=brand_id, launcher_type_id=launcher_id)
         if q:
             query = query.filter(TVModel.model.ilike(f'%{q}%'))
 
@@ -580,6 +588,7 @@ def init_app(app):
     # ── КОММЕНТАРИИ К МОДЕЛИ ──
     @app.route('/comment/<int:model_id>', methods=['POST'])
     @login_required
+    @csrf.exempt
     def add_comment(model_id):
         from flask import jsonify
         model = TVModel.query.get_or_404(model_id)
@@ -604,6 +613,7 @@ def init_app(app):
 
     @app.route('/comment/<int:comment_id>/delete', methods=['POST'])
     @login_required
+    @csrf.exempt
     def delete_comment(comment_id):
         from flask import jsonify
         comment = ModelComment.query.get_or_404(comment_id)
@@ -937,6 +947,7 @@ def init_app(app):
     @app.route('/api/inline_edit/<int:id>', methods=['POST'])
     @login_required
     @editor_required
+    @csrf.exempt
     def inline_edit(id):
         from flask import jsonify
         model = TVModel.query.get_or_404(id)

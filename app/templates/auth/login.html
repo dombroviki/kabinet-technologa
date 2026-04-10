@@ -363,6 +363,7 @@
         {% endif %}
 
         <form method="POST" autocomplete="off">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="fields-group">
                 <div class="field">
                     <input type="email" id="email" name="email" placeholder="you@example.com" required autocomplete="off" data-lpignore="true" data-form-type="other">

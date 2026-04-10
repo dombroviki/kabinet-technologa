@@ -12,6 +12,7 @@
 
 <div class="form-card" style="max-width: 580px;">
     <form method="POST" autocomplete="off" id="userForm">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
         <!-- Ловушки для автозаполнения -->
         <input type="text"     style="display:none" aria-hidden="true" tabindex="-1">

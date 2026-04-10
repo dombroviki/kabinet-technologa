@@ -255,30 +255,42 @@ h1 { font-size: 1.5rem;}
 /* Мета — вторая строка */
 .model-card-meta {
     flex: 1 1 100% !important;
-    flex-shrink: 1 !important;
-    flex-wrap: wrap !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
     gap: 6px !important;
     min-width: 0 !important;
+    flex-wrap: nowrap !important;
 }
-/* Скрываем прошивается/не прошивается, показываем версию ПО */
+/* Скрываем прошивается/не прошивается */
 .model-card-meta .flash-pill { display: none !important; }
+
+/* Версия ПО — слева, обрезается */
 .model-card-meta .model-card-sw {
-    display: inline-flex !important;
-    min-width: unset !important;
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
     text-align: left !important;
     padding-right: 0 !important;
     font-size: 0.72rem !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
 }
+/* Лот — всегда справа */
 .model-card-meta .lot-chip {
-    min-width: unset !important;
+    flex-shrink: 0 !important;
+    margin-left: auto !important;
     margin-right: 0 !important;
     font-size: 0.72rem !important;
     padding: 3px 8px !important;
+    min-width: unset !important;
 }
+/* Теги — компактные */
 .model-card-meta .tag-chip {
     font-size: 0.68rem !important;
     padding: 2px 7px !important;
     margin-right: 0 !important;
+    flex-shrink: 0 !important;
 }
 
 /* Шеврон — в правом верхнем углу */
