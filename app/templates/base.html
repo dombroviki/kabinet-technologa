@@ -54,7 +54,7 @@
                     {% endif %}
                     <div class="user-menu">
                         <div class="user-avatar" onclick="toggleUserMenu()">
-                            {{ current_user.name[0].upper() }}
+                            {{ current_user.name[0].upper() if current_user.is_authenticated else '?' }}
                         </div>
                         <div class="user-dropdown" id="userDropdown">
                             <div class="user-dropdown-name">{{ current_user.name }}</div>
