@@ -15,6 +15,12 @@ def create_app(config_class=Config):
     db.init_app(app)
     csrf.init_app(app)
 
+    # Настройки пула соединений — автовосстановление после обрыва
+    app.config.setdefault('SQLALCHEMY_ENGINE_OPTIONS', {
+        'pool_pre_ping': True,
+        'pool_recycle': 300,
+    })
+
     # Flask-Login
     login_manager.init_app(app)
     login_manager.login_view = 'auth.login'
