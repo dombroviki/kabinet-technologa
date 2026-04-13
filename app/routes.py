@@ -794,6 +794,9 @@ def init_app(app):
                 except Exception:
                     pass
 
+            updates_list = []  # накапливаем обновления
+            new_models = []    # накапливаем новые модели
+
             for sheet_name in wb.sheetnames:
                 if sheet_name in skip_sheets:
                     continue
@@ -866,17 +869,16 @@ def init_app(app):
                     if (brand.id, model_name, lot) in existing_set:
                         tv_id = existing_map.get((brand.id, model_name, lot))
                         if tv_id:
-                            db.session.query(TVModel).filter_by(id=tv_id).update({
-                                **(({'software_version': sw_version}) if sw_version else {}),
-                                **(({'specifications': sw_comment}) if sw_comment else {}),
-                                **(({'tester_name': tester}) if tester else {}),
-                                **(({'remote_control_id': remote_id}) if remote_id else {}),
-                                'is_flashable': flashable,
-                            })
+                            upd = {'id': tv_id, 'is_flashable': flashable}
+                            if sw_version: upd['software_version'] = sw_version
+                            if sw_comment: upd['specifications'] = sw_comment
+                            if tester: upd['tester_name'] = tester
+                            if remote_id: upd['remote_control_id'] = remote_id
+                            updates_list.append(upd)
                         skipped += 1
                         continue
 
-                    tv = TVModel(
+                    new_models.append(TVModel(
                         brand_id=brand.id,
                         launcher_type_id=launcher.id,
                         model=model_name, lot=lot,
@@ -886,16 +888,20 @@ def init_app(app):
                         is_flashable=flashable,
                         tester_name=tester or None,
                         tester_id=None,
-                    )
-                    db.session.add(tv)
+                    ))
                     existing_set.add((brand.id, model_name, lot))
                     added += 1
 
-                    if added % BATCH == 0:
-                        db.session.commit()
+            wb.close()
+
+            logger.warning(f'AUTO_IMPORT: inserting {added} new, updating {len(updates_list)} existing...')
+            if new_models:
+                db.session.bulk_save_objects(new_models)
+            if updates_list:
+                db.session.bulk_update_mappings(TVModel, updates_list)
 
             db.session.commit()
-            wb.close()
+            logger.warning('AUTO_IMPORT: done!')
             return jsonify({'ok': True, 'added': added, 'skipped': skipped})
 
         except Exception as e:
