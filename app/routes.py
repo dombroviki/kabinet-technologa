@@ -895,12 +895,17 @@ def init_app(app):
             wb.close()
 
             logger.warning(f'AUTO_IMPORT: inserting {added} new, updating {len(updates_list)} existing...')
+            db.session.rollback()  # сбрасываем зависшую транзакцию
             if new_models:
                 db.session.bulk_save_objects(new_models)
+                db.session.commit()
             if updates_list:
-                db.session.bulk_update_mappings(TVModel, updates_list)
-
-            db.session.commit()
+                # Обновляем чанками по 500 чтобы не перегружать
+                CHUNK = 500
+                for i in range(0, len(updates_list), CHUNK):
+                    db.session.bulk_update_mappings(TVModel, updates_list[i:i+CHUNK])
+                    db.session.commit()
+                    logger.warning(f'AUTO_IMPORT: updated chunk {i//CHUNK + 1}/{(len(updates_list)-1)//CHUNK + 1}')
             logger.warning('AUTO_IMPORT: done!')
             return jsonify({'ok': True, 'added': added, 'skipped': skipped})
 
