@@ -501,10 +501,11 @@ def init_app(app):
 
         brand_cache  = {b.name: b for b in Brand.query.all()}
         remote_cache = {r.name: r for r in RemoteControl.query.all()}
-        existing_set = {
-            (m.brand_id, m.model, m.lot)
-            for m in db.session.query(TVModel.brand_id, TVModel.model, TVModel.lot).all()
+        existing_map = {
+            (m.brand_id, m.model, m.lot): m
+            for m in TVModel.query.all()
         }
+        existing_set = set(existing_map.keys())
 
         skip_sheets = {'Требования по качеству'}
         added = skipped = 0
@@ -571,8 +572,7 @@ def init_app(app):
                         remote_id = remote_cache[remote].id
 
                     if (brand.id, model_name, lot) in existing_set:
-                        # Обновляем существующую запись
-                        tv = TVModel.query.filter_by(brand_id=brand.id, model=model_name, lot=lot).first()
+                        tv = existing_map.get((brand.id, model_name, lot))
                         if tv:
                             if sw: tv.software_version = sw
                             if tester: tv.tester_name = tester
@@ -754,10 +754,11 @@ def init_app(app):
 
             brand_cache  = {b.name: b for b in Brand.query.all()}
             remote_cache = {r.name: r for r in RemoteControl.query.all()}
-            existing_set = {
-                (m.brand_id, m.model, m.lot)
-                for m in db.session.query(TVModel.brand_id, TVModel.model, TVModel.lot).all()
+            existing_map = {
+                (m.brand_id, m.model, m.lot): m
+                for m in TVModel.query.all()
             }
+            existing_set = set(existing_map.keys())
 
             skip_sheets = {'Требования по качеству', '__comments__'}
             BATCH = 100
@@ -857,8 +858,7 @@ def init_app(app):
                         remote_id = remote_cache[remote].id
 
                     if (brand.id, model_name, lot) in existing_set:
-                        # Обновляем существующую запись
-                        tv = TVModel.query.filter_by(brand_id=brand.id, model=model_name, lot=lot).first()
+                        tv = existing_map.get((brand.id, model_name, lot))
                         if tv:
                             if sw_version: tv.software_version = sw_version
                             if sw_comment: tv.specifications = sw_comment
@@ -916,10 +916,11 @@ def init_app(app):
                 # ── Кэш брендов, пультов, существующих моделей ──
                 brand_cache   = {b.name: b for b in Brand.query.all()}
                 remote_cache  = {r.name: r for r in RemoteControl.query.all()}
-                existing_set  = {
-                    (m.brand_id, m.model, m.lot)
-                    for m in db.session.query(TVModel.brand_id, TVModel.model, TVModel.lot).all()
+                existing_map  = {
+                    (m.brand_id, m.model, m.lot): m
+                    for m in TVModel.query.all()
                 }
+                existing_set  = set(existing_map.keys())
 
                 launcher = LauncherType.query.filter_by(name=launcher_name).first()
                 if not launcher:
@@ -1026,8 +1027,7 @@ def init_app(app):
                                 remote_id = remote_cache[remote].id
 
                             if (brand.id, model_name, lot) in existing_set:
-                                # Обновляем существующую запись
-                                tv = TVModel.query.filter_by(brand_id=brand.id, model=model_name, lot=lot).first()
+                                tv = existing_map.get((brand.id, model_name, lot))
                                 if tv:
                                     if sw_version: tv.software_version = sw_version
                                     if sw_comment: tv.specifications = sw_comment
