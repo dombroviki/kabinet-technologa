@@ -723,6 +723,12 @@ def init_app(app):
         from flask import jsonify
         import io
 
+        # Сбрасываем зависшую транзакцию если есть
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+
         # Проверяем токен
         secret = current_app.config.get('IMPORT_SECRET', '')
         if not secret:
