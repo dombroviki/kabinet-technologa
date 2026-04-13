@@ -766,8 +766,19 @@ def init_app(app):
                     brand_cache  = {b.name: b for b in Brand.query.all()}
                     remote_cache = {r.name: r for r in RemoteControl.query.all()}
                     existing_map = {
-                        (m.brand_id, m.model, m.lot): m.id
-                        for m in db.session.query(TVModel.brand_id, TVModel.model, TVModel.lot, TVModel.id).all()
+                        (m.brand_id, m.model, m.lot): {
+                            'id': m.id,
+                            'software_version': m.software_version,
+                            'specifications': m.specifications,
+                            'tester_name': m.tester_name,
+                            'remote_control_id': m.remote_control_id,
+                            'is_flashable': m.is_flashable,
+                        }
+                        for m in db.session.query(
+                            TVModel.brand_id, TVModel.model, TVModel.lot, TVModel.id,
+                            TVModel.software_version, TVModel.specifications,
+                            TVModel.tester_name, TVModel.remote_control_id, TVModel.is_flashable
+                        ).all()
                     }
                     existing_set = set(existing_map.keys())
                     logger.warning(f'AUTO_IMPORT: caches loaded, existing models: {len(existing_set)}')
@@ -856,14 +867,23 @@ def init_app(app):
                                 remote_id = remote_cache[remote].id
 
                             if (brand.id, model_name, lot) in existing_set:
-                                tv_id = existing_map.get((brand.id, model_name, lot))
-                                if tv_id:
-                                    upd = {'id': tv_id, 'is_flashable': flashable}
-                                    if sw_version: upd['software_version'] = sw_version
-                                    if sw_comment: upd['specifications'] = sw_comment
-                                    if tester: upd['tester_name'] = tester
-                                    if remote_id: upd['remote_control_id'] = remote_id
-                                    updates_list.append(upd)
+                                cur = existing_map.get((brand.id, model_name, lot))
+                                if cur:
+                                    tv_id = cur['id']
+                                    # Сравниваем — обновляем только если что-то изменилось
+                                    upd = {'id': tv_id}
+                                    if sw_version and sw_version != cur['software_version']:
+                                        upd['software_version'] = sw_version
+                                    if sw_comment and sw_comment != cur['specifications']:
+                                        upd['specifications'] = sw_comment
+                                    if tester and tester != cur['tester_name']:
+                                        upd['tester_name'] = tester
+                                    if remote_id and remote_id != cur['remote_control_id']:
+                                        upd['remote_control_id'] = remote_id
+                                    if flashable != cur['is_flashable']:
+                                        upd['is_flashable'] = flashable
+                                    if len(upd) > 1:  # есть что-то кроме id
+                                        updates_list.append(upd)
                                 skipped += 1
                                 continue
 
