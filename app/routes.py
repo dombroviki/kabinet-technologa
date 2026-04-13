@@ -723,15 +723,9 @@ def init_app(app):
     @csrf.exempt
     def auto_import():
         from flask import jsonify
-        import io
+        import io, threading, openpyxl, logging
+        logger = logging.getLogger(__name__)
 
-        # Сбрасываем зависшую транзакцию если есть
-        try:
-            db.session.rollback()
-        except Exception:
-            pass
-
-        # Проверяем токен
         secret = current_app.config.get('IMPORT_SECRET', '')
         if not secret:
             return jsonify({'ok': False, 'error': 'IMPORT_SECRET не настроен'}), 500
@@ -744,175 +738,168 @@ def init_app(app):
         if not file or not file.filename:
             return jsonify({'ok': False, 'error': 'Файл не передан'}), 400
 
-        ext = file.filename.rsplit('.', 1)[-1].lower()
-        if ext not in ('xlsx', 'xls'):
+        if file.filename.rsplit('.', 1)[-1].lower() not in ('xlsx', 'xls'):
             return jsonify({'ok': False, 'error': 'Только xlsx/xls'}), 400
 
-        try:
-            import openpyxl
-            import logging
-            logger = logging.getLogger(__name__)
+        file_bytes = io.BytesIO(file.read())
+        app_obj = current_app._get_current_object()
 
-            logger.warning('AUTO_IMPORT: reading file...')
-            file_bytes = io.BytesIO(file.read())
-            logger.warning('AUTO_IMPORT: opening workbook...')
-            wb = openpyxl.load_workbook(file_bytes, data_only=True, read_only=True)
-            logger.warning(f'AUTO_IMPORT: workbook opened, sheets: {wb.sheetnames[:5]}')
-
-            launcher_name = 'собственный'
-            launcher = LauncherType.query.filter_by(name=launcher_name).first()
-            if not launcher:
-                launcher = LauncherType(name=launcher_name)
-                db.session.add(launcher)
-                db.session.flush()
-
-            logger.warning('AUTO_IMPORT: loading caches...')
-            brand_cache  = {b.name: b for b in Brand.query.all()}
-            remote_cache = {r.name: r for r in RemoteControl.query.all()}
-            existing_map = {
-                (m.brand_id, m.model, m.lot): m.id
-                for m in db.session.query(TVModel.brand_id, TVModel.model, TVModel.lot, TVModel.id).all()
-            }
-            existing_set = set(existing_map.keys())
-            logger.warning(f'AUTO_IMPORT: caches loaded, existing models: {len(existing_set)}')
-
-            skip_sheets = {'Требования по качеству', '__comments__'}
-            BATCH = 100
-            added = skipped = 0
-
-            # Читаем __comments__ если есть
-            comments_map = {}
-            if '__comments__' in wb.sheetnames:
+        def do_import():
+            with app_obj.app_context():
                 try:
-                    cs = wb['__comments__']
-                    for crow in cs.iter_rows(min_row=2, values_only=True):
-                        if not crow or len(crow) < 3:
+                    db.session.rollback()
+                    logger.warning('AUTO_IMPORT: opening workbook...')
+                    wb = openpyxl.load_workbook(file_bytes, data_only=True, read_only=True)
+                    logger.warning(f'AUTO_IMPORT: workbook opened, sheets: {wb.sheetnames[:5]}')
+
+                    launcher_name = 'собственный'
+                    launcher = LauncherType.query.filter_by(name=launcher_name).first()
+                    if not launcher:
+                        launcher = LauncherType(name=launcher_name)
+                        db.session.add(launcher)
+                        db.session.flush()
+
+                    logger.warning('AUTO_IMPORT: loading caches...')
+                    brand_cache  = {b.name: b for b in Brand.query.all()}
+                    remote_cache = {r.name: r for r in RemoteControl.query.all()}
+                    existing_map = {
+                        (m.brand_id, m.model, m.lot): m.id
+                        for m in db.session.query(TVModel.brand_id, TVModel.model, TVModel.lot, TVModel.id).all()
+                    }
+                    existing_set = set(existing_map.keys())
+                    logger.warning(f'AUTO_IMPORT: caches loaded, existing models: {len(existing_set)}')
+
+                    skip_sheets = {'Требования по качеству', '__comments__'}
+                    BATCH = 500
+                    added = skipped = 0
+                    updates_list = []
+                    new_models = []
+
+                    comments_map = {}
+                    if '__comments__' in wb.sheetnames:
+                        try:
+                            cs = wb['__comments__']
+                            for crow in cs.iter_rows(min_row=2, values_only=True):
+                                if not crow or len(crow) < 3:
+                                    continue
+                                c_sheet, c_row, c_text = crow[0], crow[1], crow[2]
+                                if c_sheet and c_row and c_text:
+                                    comments_map[(str(c_sheet).strip(), int(c_row))] = str(c_text).strip()
+                        except Exception:
+                            pass
+
+                    for sheet_name in wb.sheetnames:
+                        if sheet_name in skip_sheets:
                             continue
-                        c_sheet, c_row, c_text = crow[0], crow[1], crow[2]
-                        if c_sheet and c_row and c_text:
-                            comments_map[(str(c_sheet).strip(), int(c_row))] = str(c_text).strip()
-                except Exception:
-                    pass
-
-            updates_list = []  # накапливаем обновления
-            new_models = []    # накапливаем новые модели
-
-            for sheet_name in wb.sheetnames:
-                if sheet_name in skip_sheets:
-                    continue
-
-                logger.warning(f'AUTO_IMPORT: processing sheet {sheet_name}...')
-                brand_name = sheet_name.strip()
-                if brand_name not in brand_cache:
-                    brand = Brand(name=brand_name)
-                    db.session.add(brand)
-                    db.session.flush()
-                    brand_cache[brand_name] = brand
-                brand = brand_cache[brand_name]
-
-                ws = wb[sheet_name]
-
-                # Цвет вкладки
-                try:
-                    tab_color = ws.sheet_properties.tabColor
-                    if tab_color and not brand.tab_color:
-                        brand.tab_color = tab_color.rgb
-                except Exception:
-                    pass
-
-                col_tester = 7; col_flash = 8; col_sw = 9; col_remote = 10
-                try:
-                    for hr in ws.iter_rows(min_row=3, max_row=4, values_only=False):
-                        for ci, hc in enumerate(hr):
-                            v = str(hc.value or '').strip().lower()
-                            if 'разработчик ртп' in v: col_tester = ci
-                            elif v in ('шьём', 'шьем'): col_flash = ci
-                            elif 'версия по' in v or 'версия пo' in v: col_sw = ci
-                            elif v == 'stb': col_remote = ci
-                except Exception:
-                    pass
-
-                def _cell_str(r, idx):
-                    return str(r[idx].value).strip() if len(r) > idx and r[idx].value else ''
-
-                for row_num, row in enumerate(ws.iter_rows(min_row=5, values_only=False), start=5):
-                    model_name = str(row[0].value).strip() if row[0].value else ''
-                    if not model_name or model_name == 'None':
-                        continue
-                    lot_raw = row[1].value
-                    if isinstance(lot_raw, float):
-                        lot = str(int(lot_raw))
-                    elif hasattr(lot_raw, 'strftime'):
-                        lot = f"{lot_raw.day}/{lot_raw.month}"
-                    else:
-                        lot = str(lot_raw or '').strip()
-                    if not lot or lot == 'None':
-                        continue
-
-                    tester    = _cell_str(row, col_tester)
-                    flashable = _cell_str(row, col_flash).lower() == 'да'
-                    sw_version = _cell_str(row, col_sw)
-                    remote    = _cell_str(row, col_remote)
-
-                    # Характеристики из __comments__ (read_only режим не поддерживает .comment)
-                    sw_comment = comments_map.get((sheet_name, row_num), '')
-
-                    remote_id = None
-                    if remote:
-                        if remote not in remote_cache:
-                            rc = RemoteControl(name=remote)
-                            db.session.add(rc)
+                        logger.warning(f'AUTO_IMPORT: processing sheet {sheet_name}...')
+                        brand_name = sheet_name.strip()
+                        if brand_name not in brand_cache:
+                            brand = Brand(name=brand_name)
+                            db.session.add(brand)
                             db.session.flush()
-                            remote_cache[remote] = rc
-                        remote_id = remote_cache[remote].id
+                            brand_cache[brand_name] = brand
+                        brand = brand_cache[brand_name]
 
-                    if (brand.id, model_name, lot) in existing_set:
-                        tv_id = existing_map.get((brand.id, model_name, lot))
-                        if tv_id:
-                            upd = {'id': tv_id, 'is_flashable': flashable}
-                            if sw_version: upd['software_version'] = sw_version
-                            if sw_comment: upd['specifications'] = sw_comment
-                            if tester: upd['tester_name'] = tester
-                            if remote_id: upd['remote_control_id'] = remote_id
-                            updates_list.append(upd)
-                        skipped += 1
-                        continue
+                        ws = wb[sheet_name]
+                        try:
+                            tab_color = ws.sheet_properties.tabColor
+                            if tab_color and not brand.tab_color:
+                                brand.tab_color = tab_color.rgb
+                        except Exception:
+                            pass
 
-                    new_models.append(TVModel(
-                        brand_id=brand.id,
-                        launcher_type_id=launcher.id,
-                        model=model_name, lot=lot,
-                        remote_control_id=remote_id,
-                        software_version=sw_version or None,
-                        specifications=sw_comment or None,
-                        is_flashable=flashable,
-                        tester_name=tester or None,
-                        tester_id=None,
-                    ))
-                    existing_set.add((brand.id, model_name, lot))
-                    added += 1
+                        col_tester = 7; col_flash = 8; col_sw = 9; col_remote = 10
+                        try:
+                            for hr in ws.iter_rows(min_row=3, max_row=4, values_only=False):
+                                for ci, hc in enumerate(hr):
+                                    v = str(hc.value or '').strip().lower()
+                                    if 'разработчик ртп' in v: col_tester = ci
+                                    elif v in ('шьём', 'шьем'): col_flash = ci
+                                    elif 'версия по' in v or 'версия пo' in v: col_sw = ci
+                                    elif v == 'stb': col_remote = ci
+                        except Exception:
+                            pass
 
-            wb.close()
+                        def _cell_str(r, idx):
+                            return str(r[idx].value).strip() if len(r) > idx and r[idx].value else ''
 
-            logger.warning(f'AUTO_IMPORT: inserting {added} new, updating {len(updates_list)} existing...')
-            db.session.rollback()  # сбрасываем зависшую транзакцию
-            if new_models:
-                db.session.bulk_save_objects(new_models)
-                db.session.commit()
-            if updates_list:
-                # Обновляем чанками по 500 чтобы не перегружать
-                CHUNK = 500
-                for i in range(0, len(updates_list), CHUNK):
-                    db.session.bulk_update_mappings(TVModel, updates_list[i:i+CHUNK])
-                    db.session.commit()
-                    logger.warning(f'AUTO_IMPORT: updated chunk {i//CHUNK + 1}/{(len(updates_list)-1)//CHUNK + 1}')
-            logger.warning('AUTO_IMPORT: done!')
-            return jsonify({'ok': True, 'added': added, 'skipped': skipped})
+                        for row_num, row in enumerate(ws.iter_rows(min_row=5, values_only=False), start=5):
+                            model_name = str(row[0].value).strip() if row[0].value else ''
+                            if not model_name or model_name == 'None':
+                                continue
+                            lot_raw = row[1].value
+                            if isinstance(lot_raw, float):
+                                lot = str(int(lot_raw))
+                            elif hasattr(lot_raw, 'strftime'):
+                                lot = f"{lot_raw.day}/{lot_raw.month}"
+                            else:
+                                lot = str(lot_raw or '').strip()
+                            if not lot or lot == 'None':
+                                continue
 
-        except Exception as e:
-            db.session.rollback()
-            return jsonify({'ok': False, 'error': str(e)}), 500
+                            tester     = _cell_str(row, col_tester)
+                            flashable  = _cell_str(row, col_flash).lower() == 'да'
+                            sw_version = _cell_str(row, col_sw)
+                            remote     = _cell_str(row, col_remote)
+                            sw_comment = comments_map.get((sheet_name, row_num), '')
 
+                            remote_id = None
+                            if remote:
+                                if remote not in remote_cache:
+                                    rc = RemoteControl(name=remote)
+                                    db.session.add(rc)
+                                    db.session.flush()
+                                    remote_cache[remote] = rc
+                                remote_id = remote_cache[remote].id
+
+                            if (brand.id, model_name, lot) in existing_set:
+                                tv_id = existing_map.get((brand.id, model_name, lot))
+                                if tv_id:
+                                    upd = {'id': tv_id, 'is_flashable': flashable}
+                                    if sw_version: upd['software_version'] = sw_version
+                                    if sw_comment: upd['specifications'] = sw_comment
+                                    if tester: upd['tester_name'] = tester
+                                    if remote_id: upd['remote_control_id'] = remote_id
+                                    updates_list.append(upd)
+                                skipped += 1
+                                continue
+
+                            new_models.append(TVModel(
+                                brand_id=brand.id,
+                                launcher_type_id=launcher.id,
+                                model=model_name, lot=lot,
+                                remote_control_id=remote_id,
+                                software_version=sw_version or None,
+                                specifications=sw_comment or None,
+                                is_flashable=flashable,
+                                tester_name=tester or None,
+                                tester_id=None,
+                            ))
+                            existing_set.add((brand.id, model_name, lot))
+                            added += 1
+
+                    wb.close()
+                    logger.warning(f'AUTO_IMPORT: inserting {added} new, updating {len(updates_list)} existing...')
+
+                    if new_models:
+                        db.session.bulk_save_objects(new_models)
+                        db.session.commit()
+
+                    if updates_list:
+                        for i in range(0, len(updates_list), BATCH):
+                            db.session.bulk_update_mappings(TVModel, updates_list[i:i+BATCH])
+                            db.session.commit()
+                            logger.warning(f'AUTO_IMPORT: updated chunk {i//BATCH + 1}/{(len(updates_list)-1)//BATCH + 1}')
+
+                    logger.warning('AUTO_IMPORT: done!')
+
+                except Exception as e:
+                    db.session.rollback()
+                    logger.error(f'AUTO_IMPORT error: {e}')
+
+        t = threading.Thread(target=do_import, daemon=True)
+        t.start()
+        return jsonify({'ok': True, 'status': 'processing'})
     # ── ГЛОБАЛЬНЫЙ ИМПОРТ ──
     @app.route('/import/all', methods=['GET', 'POST'])
     @login_required
