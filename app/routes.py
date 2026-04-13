@@ -750,8 +750,14 @@ def init_app(app):
 
         try:
             import openpyxl
+            import logging
+            logger = logging.getLogger(__name__)
+
+            logger.warning('AUTO_IMPORT: reading file...')
             file_bytes = io.BytesIO(file.read())
+            logger.warning('AUTO_IMPORT: opening workbook...')
             wb = openpyxl.load_workbook(file_bytes, data_only=True, read_only=True)
+            logger.warning(f'AUTO_IMPORT: workbook opened, sheets: {wb.sheetnames[:5]}')
 
             launcher_name = 'собственный'
             launcher = LauncherType.query.filter_by(name=launcher_name).first()
@@ -760,6 +766,7 @@ def init_app(app):
                 db.session.add(launcher)
                 db.session.flush()
 
+            logger.warning('AUTO_IMPORT: loading caches...')
             brand_cache  = {b.name: b for b in Brand.query.all()}
             remote_cache = {r.name: r for r in RemoteControl.query.all()}
             existing_map = {
@@ -767,6 +774,7 @@ def init_app(app):
                 for m in db.session.query(TVModel.brand_id, TVModel.model, TVModel.lot, TVModel.id).all()
             }
             existing_set = set(existing_map.keys())
+            logger.warning(f'AUTO_IMPORT: caches loaded, existing models: {len(existing_set)}')
 
             skip_sheets = {'Требования по качеству', '__comments__'}
             BATCH = 100
@@ -790,6 +798,7 @@ def init_app(app):
                 if sheet_name in skip_sheets:
                     continue
 
+                logger.warning(f'AUTO_IMPORT: processing sheet {sheet_name}...')
                 brand_name = sheet_name.strip()
                 if brand_name not in brand_cache:
                     brand = Brand(name=brand_name)
