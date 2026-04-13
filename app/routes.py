@@ -881,15 +881,35 @@ def init_app(app):
                     wb.close()
                     logger.warning(f'AUTO_IMPORT: inserting {added} new, updating {len(updates_list)} existing...')
 
-                    if new_models:
-                        db.session.bulk_save_objects(new_models)
-                        db.session.commit()
+                    from sqlalchemy.dialects.postgresql import insert as pg_insert
 
+                    # Upsert новых одним запросом
+                    if new_models:
+                        rows = [{
+                            'brand_id': m.brand_id,
+                            'launcher_type_id': m.launcher_type_id,
+                            'model': m.model,
+                            'lot': m.lot,
+                            'remote_control_id': m.remote_control_id,
+                            'software_version': m.software_version,
+                            'specifications': m.specifications,
+                            'is_flashable': m.is_flashable,
+                            'tester_name': m.tester_name,
+                            'tester_id': m.tester_id,
+                        } for m in new_models]
+                        stmt = pg_insert(TVModel).values(rows)
+                        stmt = stmt.on_conflict_do_nothing()
+                        db.session.execute(stmt)
+                        db.session.commit()
+                        logger.warning(f'AUTO_IMPORT: inserted {len(rows)} new')
+
+                    # Bulk update существующих чанками
                     if updates_list:
-                        for i in range(0, len(updates_list), BATCH):
-                            db.session.bulk_update_mappings(TVModel, updates_list[i:i+BATCH])
+                        CHUNK = 1000
+                        for i in range(0, len(updates_list), CHUNK):
+                            db.session.bulk_update_mappings(TVModel, updates_list[i:i+CHUNK])
                             db.session.commit()
-                            logger.warning(f'AUTO_IMPORT: updated chunk {i//BATCH + 1}/{(len(updates_list)-1)//BATCH + 1}')
+                            logger.warning(f'AUTO_IMPORT: updated chunk {i//CHUNK + 1}/{(len(updates_list)-1)//CHUNK + 1}')
 
                     logger.warning('AUTO_IMPORT: done!')
 
