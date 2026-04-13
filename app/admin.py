@@ -3,7 +3,7 @@ from flask_login import login_required, current_user
 from functools import wraps
 from sqlalchemy import func
 from . import db
-from .models import User, Brand, LauncherType, TVModel, RemoteControl, Tag
+from .models import User, Brand, LauncherType, TVModel, RemoteControl, Tag, tv_model_tags
 
 admin_bp = Blueprint('admin', __name__)
 
@@ -187,8 +187,14 @@ def delete_brand(brand_id):
 @login_required
 @admin_required
 def launchers():
-    all_launchers = LauncherType.query.order_by(LauncherType.name).all()
-    return render_template('admin/launchers.html', launchers=all_launchers)
+    launchers_data = (
+        db.session.query(LauncherType, func.count(TVModel.id).label('model_count'))
+        .outerjoin(TVModel, TVModel.launcher_type_id == LauncherType.id)
+        .group_by(LauncherType.id)
+        .order_by(LauncherType.name)
+        .all()
+    )
+    return render_template('admin/launchers.html', launchers=launchers_data)
 
 
 @admin_bp.route('/launchers/create', methods=['GET', 'POST'])
@@ -326,8 +332,14 @@ TAG_COLORS = [
 @login_required
 @admin_required
 def tags():
-    all_tags = Tag.query.order_by(Tag.name).all()
-    return render_template('admin/tags.html', tags=all_tags)
+    tags_data = (
+        db.session.query(Tag, func.count(tv_model_tags.c.tv_model_id).label('model_count'))
+        .outerjoin(tv_model_tags, tv_model_tags.c.tag_id == Tag.id)
+        .group_by(Tag.id)
+        .order_by(Tag.name)
+        .all()
+    )
+    return render_template('admin/tags.html', tags=tags_data)
 
 
 @admin_bp.route('/tags/create', methods=['GET', 'POST'])

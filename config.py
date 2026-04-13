@@ -15,6 +15,7 @@ class Config:
     GOOGLE_CLIENT_ID     = os.environ.get('GOOGLE_CLIENT_ID', '')
     GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET', '')
 
-    # Google Sheets синхронизация
+    # Автоимпорт из Apps Script
+    IMPORT_SECRET = os.environ.get('IMPORT_SECRET', '')
     SHEETS_CREDENTIALS_FILE = os.environ.get('SHEETS_CREDENTIALS_FILE') or         os.path.join(BASE_DIR, 'google_credentials.json')
     SHEETS_SPREADSHEET_ID   = os.environ.get('SHEETS_SPREADSHEET_ID',         '1rOj9tEkL_mFNV7d4Ao9hy0nlpAv495l6_ClCwqYqoNs')

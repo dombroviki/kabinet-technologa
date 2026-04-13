@@ -20,8 +20,10 @@
         {% endif %}
     </div>
     <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:flex-start;">
+        {% if current_user.is_editor %}
         <a href="{{ url_for('edit_model', id=model.id) }}" class="btn btn-secondary">✏️ Редактировать</a>
         <button class="btn btn-danger" data-delete-url="{{ url_for('delete_model', id=model.id) }}" onclick="showDeleteModal(this.dataset.deleteUrl)">🗑 Удалить</button>
+        {% endif %}
     </div>
 </div>
 
@@ -171,12 +173,14 @@
         {% endfor %}
     </div>
 
+    {% if current_user.is_editor %}
     <div class="comment-form" style="margin-top:14px;">
         <textarea id="commentInput" class="comment-input" placeholder="Написать комментарий..." rows="2"></textarea>
         <div style="display:flex; justify-content:flex-end; margin-top:8px;">
             <button class="btn btn-primary btn-sm" onclick="submitComment()">Отправить</button>
         </div>
     </div>
+    {% endif %}
 </div>
 
 {% if audit_log %}

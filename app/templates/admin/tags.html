@@ -21,13 +21,13 @@
             </tr>
         </thead>
         <tbody>
-            {% for tag in tags %}
+            {% for tag, model_count in tags %}
             <tr>
                 <td>
                     <span class="tag-chip" style="--tag-color: {{ tag.color }}; font-size:0.85rem; padding:5px 14px;">{{ tag.name }}</span>
                 </td>
                 <td>
-                    <span class="lot-chip">{{ tag.tv_models|length }}</span>
+                    <span class="lot-chip">{{ model_count }}</span>
                 </td>
                 <td>
                     <div class="actions-cell">

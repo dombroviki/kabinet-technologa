@@ -21,7 +21,7 @@
             </tr>
         </thead>
         <tbody>
-            {% for launcher in launchers %}
+            {% for launcher, model_count in launchers %}
             <tr>
                 <td>
                     <span class="model-badge">
@@ -30,14 +30,14 @@
                     </span>
                 </td>
                 <td>
-                    <span class="lot-chip">{{ launcher.tv_models|length }}</span>
+                    <span class="lot-chip">{{ model_count }}</span>
                 </td>
                 <td>
                     <div class="actions-cell">
                         <a href="{{ url_for('admin.edit_launcher', launcher_id=launcher.id) }}" class="btn btn-secondary btn-sm" title="Редактировать">✏️</a>
                         <button class="btn btn-danger btn-sm"
                                 data-delete-url="{{ url_for('admin.delete_launcher', launcher_id=launcher.id) }}"
-                                onclick="showDeleteModal(this.dataset.deleteUrl, {{ launcher.tv_models|length }})"
+                                onclick="showDeleteModal(this.dataset.deleteUrl, {{ model_count }})"
                                 title="Удалить">🗑</button>
                     </div>
                 </td>

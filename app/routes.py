@@ -227,7 +227,15 @@ def init_app(app):
     @app.route('/view/<int:id>')
     @login_required
     def view_model(id):
-        model = TVModel.query.get_or_404(id)
+        from sqlalchemy.orm import joinedload
+        model = TVModel.query.options(
+            joinedload(TVModel.brand),
+            joinedload(TVModel.launcher_type),
+            joinedload(TVModel.photos),
+            joinedload(TVModel.firmwares),
+            joinedload(TVModel.tags),
+            joinedload(TVModel.remote),
+        ).get_or_404(id)
         back_url = request.args.get('back_url') or request.referrer or \
                    url_for('models_list', brand_id=model.brand_id, launcher_id=model.launcher_type_id)
         audit_log = AuditLog.query.filter_by(tv_model_id=id)\
@@ -373,7 +381,10 @@ def init_app(app):
         log_action('delete', model)
         for photo in model.photos:
             delete_file(photo.filename, 'photos')
-        delete_file(model.firmware_filename, 'firmware')
+        for fw in model.firmwares:
+            delete_file(fw.filename, 'firmware')
+        if model.firmware_filename:
+            delete_file(model.firmware_filename, 'firmware')
         db.session.delete(model)
         db.session.commit()
         flash('Модель удалена', 'success')
@@ -422,7 +433,11 @@ def init_app(app):
             return jsonify([])
 
         words = q.split()
-        query = TVModel.query.join(Brand).join(LauncherType)
+        from sqlalchemy.orm import joinedload
+        query = TVModel.query.join(Brand).join(LauncherType).options(
+            joinedload(TVModel.brand),
+            joinedload(TVModel.launcher_type),
+        )
 
         # Фильтруем по бренду если передан (локальный поиск)
         if brand_id:
@@ -541,10 +556,6 @@ def init_app(app):
                     except Exception:
                         lot = lot_raw
 
-                    if (brand.id, model_name, lot) in existing_set:
-                        skipped += 1
-                        continue
-
                     tester    = _gs(row, col_tester)
                     flashable = _gs(row, col_flash).lower() == 'да'
                     sw        = _gs(row, col_sw)
@@ -558,6 +569,17 @@ def init_app(app):
                             db.session.flush()
                             remote_cache[remote] = rc
                         remote_id = remote_cache[remote].id
+
+                    if (brand.id, model_name, lot) in existing_set:
+                        # Обновляем существующую запись
+                        tv = TVModel.query.filter_by(brand_id=brand.id, model=model_name, lot=lot).first()
+                        if tv:
+                            if sw: tv.software_version = sw
+                            if tester: tv.tester_name = tester
+                            if remote_id: tv.remote_control_id = remote_id
+                            tv.is_flashable = flashable
+                        skipped += 1
+                        continue
 
                     tv = TVModel(
                         brand_id=brand.id,
@@ -588,6 +610,7 @@ def init_app(app):
     # ── КОММЕНТАРИИ К МОДЕЛИ ──
     @app.route('/comment/<int:model_id>', methods=['POST'])
     @login_required
+    @editor_required
     @csrf.exempt
     def add_comment(model_id):
         from flask import jsonify
@@ -624,47 +647,6 @@ def init_app(app):
         db.session.commit()
         return jsonify({'ok': True})
 
-        creds_file = current_app.config.get('SHEETS_CREDENTIALS_FILE')
-        if not creds_file or not os.path.exists(creds_file):
-            flash('Файл google_credentials.json не найден', 'error')
-            return redirect(url_for('import_all'))
-
-        # Путь к БД
-        db_url = current_app.config.get('SQLALCHEMY_DATABASE_URI', '')
-        if db_url.startswith('sqlite:///'):
-            db_path = db_url.replace('sqlite:///', '')
-            if not os.path.isabs(db_path):
-                db_path = os.path.join(current_app.config['BASE_DIR'], 'instance', db_path)
-        else:
-            flash('Резервное копирование поддерживается только для SQLite', 'error')
-            return redirect(url_for('import_all'))
-
-        if not os.path.exists(db_path):
-            flash(f'База данных не найдена: {db_path}', 'error')
-            return redirect(url_for('import_all'))
-
-        try:
-            scopes  = ['https://www.googleapis.com/auth/drive.file']
-            creds   = Credentials.from_service_account_file(creds_file, scopes=scopes)
-            service = build('drive', 'v3', credentials=creds)
-
-            from datetime import datetime
-            filename = f"backup_{datetime.now().strftime('%Y-%m-%d_%H-%M')}.db"
-
-            # Используем существующую папку KabinetBackups
-            folder_id = '16dPltE3FZa6UKDeBK2ExAoLufPHaeU_Z'
-
-            # Загружаем файл
-            file_meta = {'name': filename, 'parents': [folder_id]}
-            media = MediaFileUpload(db_path, mimetype='application/octet-stream')
-            service.files().create(body=file_meta, media_body=media, fields='id').execute()
-
-            flash(f'Резервная копия «{filename}» сохранена на Google Drive в папку KabinetBackups', 'success')
-        except Exception as e:
-            flash(f'Ошибка резервного копирования: {e}', 'error')
-
-        return redirect(url_for('import_all'))
-
     @app.route('/search')
     @login_required
     def search():
@@ -698,8 +680,13 @@ def init_app(app):
     def export_all():
         import io, csv
         from flask import Response
-        models = TVModel.query.join(Brand).join(LauncherType)\
-            .order_by(Brand.name, LauncherType.name, TVModel.model).all()
+        from sqlalchemy.orm import joinedload
+        models = TVModel.query.join(Brand).join(LauncherType).options(
+            joinedload(TVModel.brand),
+            joinedload(TVModel.launcher_type),
+            joinedload(TVModel.remote),
+            joinedload(TVModel.tags),
+        ).order_by(Brand.name, LauncherType.name, TVModel.model).all()
 
         output = io.StringIO()
         writer = csv.writer(output, delimiter=';')
@@ -727,6 +714,185 @@ def init_app(app):
             mimetype='text/csv; charset=utf-8',
             headers={'Content-Disposition': 'attachment; filename="kabinet_export.csv"'}
         )
+
+
+    # ── АВТОИМПОРТ ИЗ APPS SCRIPT ──
+    @app.route('/api/auto-import', methods=['POST'])
+    @csrf.exempt
+    def auto_import():
+        from flask import jsonify
+        import io
+
+        # Проверяем токен
+        secret = current_app.config.get('IMPORT_SECRET', '')
+        if not secret:
+            return jsonify({'ok': False, 'error': 'IMPORT_SECRET не настроен'}), 500
+
+        token = request.headers.get('X-Import-Token') or request.form.get('token', '')
+        if token != secret:
+            return jsonify({'ok': False, 'error': 'Неверный токен'}), 403
+
+        file = request.files.get('file')
+        if not file or not file.filename:
+            return jsonify({'ok': False, 'error': 'Файл не передан'}), 400
+
+        ext = file.filename.rsplit('.', 1)[-1].lower()
+        if ext not in ('xlsx', 'xls'):
+            return jsonify({'ok': False, 'error': 'Только xlsx/xls'}), 400
+
+        try:
+            import openpyxl
+            file_bytes = io.BytesIO(file.read())
+            wb = openpyxl.load_workbook(file_bytes, data_only=True)
+
+            launcher_name = 'собственный'
+            launcher = LauncherType.query.filter_by(name=launcher_name).first()
+            if not launcher:
+                launcher = LauncherType(name=launcher_name)
+                db.session.add(launcher)
+                db.session.flush()
+
+            brand_cache  = {b.name: b for b in Brand.query.all()}
+            remote_cache = {r.name: r for r in RemoteControl.query.all()}
+            existing_set = {
+                (m.brand_id, m.model, m.lot)
+                for m in db.session.query(TVModel.brand_id, TVModel.model, TVModel.lot).all()
+            }
+
+            skip_sheets = {'Требования по качеству', '__comments__'}
+            BATCH = 100
+            added = skipped = 0
+
+            # Читаем __comments__ если есть
+            comments_map = {}
+            if '__comments__' in wb.sheetnames:
+                try:
+                    cs = wb['__comments__']
+                    for crow in cs.iter_rows(min_row=2, values_only=True):
+                        if not crow or len(crow) < 3:
+                            continue
+                        c_sheet, c_row, c_text = crow[0], crow[1], crow[2]
+                        if c_sheet and c_row and c_text:
+                            comments_map[(str(c_sheet).strip(), int(c_row))] = str(c_text).strip()
+                except Exception:
+                    pass
+
+            for sheet_name in wb.sheetnames:
+                if sheet_name in skip_sheets:
+                    continue
+
+                brand_name = sheet_name.strip()
+                if brand_name not in brand_cache:
+                    brand = Brand(name=brand_name)
+                    db.session.add(brand)
+                    db.session.flush()
+                    brand_cache[brand_name] = brand
+                brand = brand_cache[brand_name]
+
+                ws = wb[sheet_name]
+
+                # Цвет вкладки
+                try:
+                    tab_color = ws.sheet_properties.tabColor
+                    if tab_color and not brand.tab_color:
+                        brand.tab_color = tab_color.rgb
+                except Exception:
+                    pass
+
+                col_tester = 7; col_flash = 8; col_sw = 9; col_remote = 10
+                try:
+                    for hr in ws.iter_rows(min_row=3, max_row=4, values_only=False):
+                        for ci, hc in enumerate(hr):
+                            v = str(hc.value or '').strip().lower()
+                            if 'разработчик ртп' in v: col_tester = ci
+                            elif v in ('шьём', 'шьем'): col_flash = ci
+                            elif 'версия по' in v or 'версия пo' in v: col_sw = ci
+                            elif v == 'stb': col_remote = ci
+                except Exception:
+                    pass
+
+                def _cell_str(r, idx):
+                    return str(r[idx].value).strip() if len(r) > idx and r[idx].value else ''
+
+                for row in ws.iter_rows(min_row=5, values_only=False):
+                    model_name = str(row[0].value).strip() if row[0].value else ''
+                    if not model_name or model_name == 'None':
+                        continue
+                    lot_raw = row[1].value
+                    if isinstance(lot_raw, float):
+                        lot = str(int(lot_raw))
+                    elif hasattr(lot_raw, 'strftime'):
+                        lot = f"{lot_raw.day}/{lot_raw.month}"
+                    else:
+                        lot = str(lot_raw or '').strip()
+                    if not lot or lot == 'None':
+                        continue
+
+                    tester    = _cell_str(row, col_tester)
+                    flashable = _cell_str(row, col_flash).lower() == 'да'
+                    sw_version = _cell_str(row, col_sw)
+                    remote    = _cell_str(row, col_remote)
+
+                    # Характеристики из комментария ячейки или __comments__
+                    sw_comment = ''
+                    try:
+                        if len(row) > col_sw and row[col_sw].comment and row[col_sw].comment.text:
+                            raw = row[col_sw].comment.text.strip()
+                            marker = 'Comment:'
+                            if marker in raw:
+                                raw = raw[raw.index(marker) + len(marker):].strip()
+                            sw_comment = raw
+                    except Exception:
+                        pass
+                    if not sw_comment:
+                        sw_comment = comments_map.get((sheet_name, row[0].row), '')
+
+                    remote_id = None
+                    if remote:
+                        if remote not in remote_cache:
+                            rc = RemoteControl(name=remote)
+                            db.session.add(rc)
+                            db.session.flush()
+                            remote_cache[remote] = rc
+                        remote_id = remote_cache[remote].id
+
+                    if (brand.id, model_name, lot) in existing_set:
+                        # Обновляем существующую запись
+                        tv = TVModel.query.filter_by(brand_id=brand.id, model=model_name, lot=lot).first()
+                        if tv:
+                            if sw_version: tv.software_version = sw_version
+                            if sw_comment: tv.specifications = sw_comment
+                            if tester: tv.tester_name = tester
+                            if remote_id: tv.remote_control_id = remote_id
+                            tv.is_flashable = flashable
+                        skipped += 1
+                        continue
+
+                    tv = TVModel(
+                        brand_id=brand.id,
+                        launcher_type_id=launcher.id,
+                        model=model_name, lot=lot,
+                        remote_control_id=remote_id,
+                        software_version=sw_version or None,
+                        specifications=sw_comment or None,
+                        is_flashable=flashable,
+                        tester_name=tester or None,
+                        tester_id=None,
+                    )
+                    db.session.add(tv)
+                    existing_set.add((brand.id, model_name, lot))
+                    added += 1
+
+                    if added % BATCH == 0:
+                        db.session.commit()
+
+            db.session.commit()
+            wb.close()
+            return jsonify({'ok': True, 'added': added, 'skipped': skipped})
+
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'ok': False, 'error': str(e)}), 500
 
     # ── ГЛОБАЛЬНЫЙ ИМПОРТ ──
     @app.route('/import/all', methods=['GET', 'POST'])
@@ -834,10 +1000,6 @@ def init_app(app):
                             if not lot or lot == 'None':
                                 continue
 
-                            if (brand.id, model_name, lot) in existing_set:
-                                skipped += 1
-                                continue
-
                             tester     = _cell_str(row, col_tester)
                             flashable  = _cell_str(row, col_flash).lower() == 'да'
                             sw_version = _cell_str(row, col_sw)
@@ -862,6 +1024,18 @@ def init_app(app):
                                     db.session.flush()
                                     remote_cache[remote] = rc
                                 remote_id = remote_cache[remote].id
+
+                            if (brand.id, model_name, lot) in existing_set:
+                                # Обновляем существующую запись
+                                tv = TVModel.query.filter_by(brand_id=brand.id, model=model_name, lot=lot).first()
+                                if tv:
+                                    if sw_version: tv.software_version = sw_version
+                                    if sw_comment: tv.specifications = sw_comment
+                                    if tester: tv.tester_name = tester
+                                    if remote_id: tv.remote_control_id = remote_id
+                                    tv.is_flashable = flashable
+                                skipped += 1
+                                continue
 
                             tv = TVModel(
                                 brand_id=brand.id,
@@ -1111,7 +1285,11 @@ def init_app(app):
         from flask import Response
         brand    = Brand.query.get_or_404(brand_id)
         launcher = LauncherType.query.get_or_404(launcher_id)
-        models   = TVModel.query.filter_by(
+        from sqlalchemy.orm import joinedload
+        models   = TVModel.query.options(
+            joinedload(TVModel.remote),
+            joinedload(TVModel.tags),
+        ).filter_by(
             brand_id=brand_id, launcher_type_id=launcher_id
         ).order_by(TVModel.date_added.desc()).all()
 

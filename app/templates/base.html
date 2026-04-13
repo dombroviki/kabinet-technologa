@@ -145,6 +145,7 @@
             <h3>⚠ Подтверждение удаления</h3>
             <p>Это действие нельзя отменить.<br>Вы уверены?</p>
             <form id="deleteForm" method="post">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit" class="btn btn-danger">Удалить</button>
                 <button type="button" class="btn btn-secondary" onclick="closeModal()">Отмена</button>
             </form>
