@@ -502,8 +502,8 @@ def init_app(app):
         brand_cache  = {b.name: b for b in Brand.query.all()}
         remote_cache = {r.name: r for r in RemoteControl.query.all()}
         existing_map = {
-            (m.brand_id, m.model, m.lot): m
-            for m in TVModel.query.all()
+            (m.brand_id, m.model, m.lot): m.id
+            for m in db.session.query(TVModel.brand_id, TVModel.model, TVModel.lot, TVModel.id).all()
         }
         existing_set = set(existing_map.keys())
 
@@ -572,12 +572,14 @@ def init_app(app):
                         remote_id = remote_cache[remote].id
 
                     if (brand.id, model_name, lot) in existing_set:
-                        tv = existing_map.get((brand.id, model_name, lot))
-                        if tv:
-                            if sw: tv.software_version = sw
-                            if tester: tv.tester_name = tester
-                            if remote_id: tv.remote_control_id = remote_id
-                            tv.is_flashable = flashable
+                        tv_id = existing_map.get((brand.id, model_name, lot))
+                        if tv_id:
+                            tv = TVModel.query.get(tv_id)
+                            if tv:
+                                if sw: tv.software_version = sw
+                                if tester: tv.tester_name = tester
+                                if remote_id: tv.remote_control_id = remote_id
+                                tv.is_flashable = flashable
                         skipped += 1
                         continue
 
@@ -761,8 +763,8 @@ def init_app(app):
             brand_cache  = {b.name: b for b in Brand.query.all()}
             remote_cache = {r.name: r for r in RemoteControl.query.all()}
             existing_map = {
-                (m.brand_id, m.model, m.lot): m
-                for m in TVModel.query.all()
+                (m.brand_id, m.model, m.lot): m.id
+                for m in db.session.query(TVModel.brand_id, TVModel.model, TVModel.lot, TVModel.id).all()
             }
             existing_set = set(existing_map.keys())
 
@@ -864,13 +866,15 @@ def init_app(app):
                         remote_id = remote_cache[remote].id
 
                     if (brand.id, model_name, lot) in existing_set:
-                        tv = existing_map.get((brand.id, model_name, lot))
-                        if tv:
-                            if sw_version: tv.software_version = sw_version
-                            if sw_comment: tv.specifications = sw_comment
-                            if tester: tv.tester_name = tester
-                            if remote_id: tv.remote_control_id = remote_id
-                            tv.is_flashable = flashable
+                        tv_id = existing_map.get((brand.id, model_name, lot))
+                        if tv_id:
+                            db.session.query(TVModel).filter_by(id=tv_id).update({
+                                **(({'software_version': sw_version}) if sw_version else {}),
+                                **(({'specifications': sw_comment}) if sw_comment else {}),
+                                **(({'tester_name': tester}) if tester else {}),
+                                **(({'remote_control_id': remote_id}) if remote_id else {}),
+                                'is_flashable': flashable,
+                            })
                         skipped += 1
                         continue
 
@@ -923,8 +927,8 @@ def init_app(app):
                 brand_cache   = {b.name: b for b in Brand.query.all()}
                 remote_cache  = {r.name: r for r in RemoteControl.query.all()}
                 existing_map  = {
-                    (m.brand_id, m.model, m.lot): m
-                    for m in TVModel.query.all()
+                    (m.brand_id, m.model, m.lot): m.id
+                    for m in db.session.query(TVModel.brand_id, TVModel.model, TVModel.lot, TVModel.id).all()
                 }
                 existing_set  = set(existing_map.keys())
 
@@ -1033,13 +1037,15 @@ def init_app(app):
                                 remote_id = remote_cache[remote].id
 
                             if (brand.id, model_name, lot) in existing_set:
-                                tv = existing_map.get((brand.id, model_name, lot))
-                                if tv:
-                                    if sw_version: tv.software_version = sw_version
-                                    if sw_comment: tv.specifications = sw_comment
-                                    if tester: tv.tester_name = tester
-                                    if remote_id: tv.remote_control_id = remote_id
-                                    tv.is_flashable = flashable
+                                tv_id = existing_map.get((brand.id, model_name, lot))
+                                if tv_id:
+                                    db.session.query(TVModel).filter_by(id=tv_id).update({
+                                        **(({'software_version': sw_version}) if sw_version else {}),
+                                        **(({'specifications': sw_comment}) if sw_comment else {}),
+                                        **(({'tester_name': tester}) if tester else {}),
+                                        **(({'remote_control_id': remote_id}) if remote_id else {}),
+                                        'is_flashable': flashable,
+                                    })
                                 skipped += 1
                                 continue
 
