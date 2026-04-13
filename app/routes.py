@@ -751,7 +751,7 @@ def init_app(app):
         try:
             import openpyxl
             file_bytes = io.BytesIO(file.read())
-            wb = openpyxl.load_workbook(file_bytes, data_only=True)
+            wb = openpyxl.load_workbook(file_bytes, data_only=True, read_only=True)
 
             launcher_name = 'собственный'
             launcher = LauncherType.query.filter_by(name=launcher_name).first()
@@ -823,7 +823,7 @@ def init_app(app):
                 def _cell_str(r, idx):
                     return str(r[idx].value).strip() if len(r) > idx and r[idx].value else ''
 
-                for row in ws.iter_rows(min_row=5, values_only=False):
+                for row_num, row in enumerate(ws.iter_rows(min_row=5, values_only=False), start=5):
                     model_name = str(row[0].value).strip() if row[0].value else ''
                     if not model_name or model_name == 'None':
                         continue
@@ -842,19 +842,8 @@ def init_app(app):
                     sw_version = _cell_str(row, col_sw)
                     remote    = _cell_str(row, col_remote)
 
-                    # Характеристики из комментария ячейки или __comments__
-                    sw_comment = ''
-                    try:
-                        if len(row) > col_sw and row[col_sw].comment and row[col_sw].comment.text:
-                            raw = row[col_sw].comment.text.strip()
-                            marker = 'Comment:'
-                            if marker in raw:
-                                raw = raw[raw.index(marker) + len(marker):].strip()
-                            sw_comment = raw
-                    except Exception:
-                        pass
-                    if not sw_comment:
-                        sw_comment = comments_map.get((sheet_name, row[0].row), '')
+                    # Характеристики из __comments__ (read_only режим не поддерживает .comment)
+                    sw_comment = comments_map.get((sheet_name, row_num), '')
 
                     remote_id = None
                     if remote:
@@ -941,7 +930,7 @@ def init_app(app):
                 if ext in ('xlsx', 'xls'):
                     import openpyxl
                     file_bytes = io.BytesIO(file.read())
-                    wb = openpyxl.load_workbook(file_bytes, data_only=True)
+                    wb = openpyxl.load_workbook(file_bytes, data_only=True, read_only=True)
 
                     skip_sheets = {'Требования по качеству'}
 
@@ -1016,9 +1005,10 @@ def init_app(app):
                             sw_version = _cell_str(row, col_sw)
                             remote     = _cell_str(row, col_remote)
 
+                            # Характеристики из комментария ячейки
                             sw_comment = ''
                             try:
-                                if len(row) > col_sw and row[col_sw].comment and row[col_sw].comment.text:
+                                if len(row) > col_sw and hasattr(row[col_sw], 'comment') and row[col_sw].comment and row[col_sw].comment.text:
                                     raw = row[col_sw].comment.text.strip()
                                     marker = 'Comment:'
                                     if marker in raw:
