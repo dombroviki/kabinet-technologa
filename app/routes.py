@@ -719,9 +719,12 @@ def init_app(app):
 
 
     # ── АВТОИМПОРТ ИЗ APPS SCRIPT ──
+    _import_running = False
+
     @app.route('/api/auto-import', methods=['POST'])
     @csrf.exempt
     def auto_import():
+        nonlocal _import_running
         from flask import jsonify
         import io, threading, openpyxl, logging
         logger = logging.getLogger(__name__)
@@ -903,13 +906,24 @@ def init_app(app):
                         db.session.commit()
                         logger.warning(f'AUTO_IMPORT: inserted {len(rows)} new')
 
-                    # Bulk update существующих чанками
+                    # Bulk update существующих чанками с retry
                     if updates_list:
-                        CHUNK = 1000
+                        CHUNK = 500
+                        total_chunks = (len(updates_list) - 1) // CHUNK + 1
                         for i in range(0, len(updates_list), CHUNK):
-                            db.session.bulk_update_mappings(TVModel, updates_list[i:i+CHUNK])
-                            db.session.commit()
-                            logger.warning(f'AUTO_IMPORT: updated chunk {i//CHUNK + 1}/{(len(updates_list)-1)//CHUNK + 1}')
+                            chunk = updates_list[i:i+CHUNK]
+                            for attempt in range(3):
+                                try:
+                                    db.session.rollback()
+                                    db.session.bulk_update_mappings(TVModel, chunk)
+                                    db.session.commit()
+                                    logger.warning(f'AUTO_IMPORT: updated chunk {i//CHUNK + 1}/{total_chunks}')
+                                    break
+                                except Exception as chunk_err:
+                                    logger.error(f'AUTO_IMPORT chunk error attempt {attempt+1}: {chunk_err}')
+                                    db.session.rollback()
+                                    if attempt == 2:
+                                        raise
 
                     logger.warning('AUTO_IMPORT: done!')
 
@@ -917,7 +931,18 @@ def init_app(app):
                     db.session.rollback()
                     logger.error(f'AUTO_IMPORT error: {e}')
 
-        t = threading.Thread(target=do_import, daemon=True)
+        if _import_running:
+            return jsonify({'ok': False, 'error': 'Импорт уже запущен, подождите'}), 429
+
+        def do_import_safe():
+            nonlocal _import_running
+            _import_running = True
+            try:
+                do_import()
+            finally:
+                _import_running = False
+
+        t = threading.Thread(target=do_import_safe, daemon=True)
         t.start()
         return jsonify({'ok': True, 'status': 'processing'})
     # ── ГЛОБАЛЬНЫЙ ИМПОРТ ──
