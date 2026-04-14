@@ -880,9 +880,9 @@ def init_app(app):
                                         upd['tester_name'] = tester
                                     if remote_id and remote_id != cur['remote_control_id']:
                                         upd['remote_control_id'] = remote_id
-                                    if flashable != cur['is_flashable']:
+                                    if bool(flashable) != bool(cur['is_flashable']):
                                         upd['is_flashable'] = flashable
-                                    if len(upd) > 1:  # есть что-то кроме id
+                                    if len(upd) > 1:
                                         updates_list.append(upd)
                                 skipped += 1
                                 continue
@@ -902,7 +902,7 @@ def init_app(app):
                             added += 1
 
                     wb.close()
-                    logger.warning(f'AUTO_IMPORT: inserting {added} new, updating {len(updates_list)} existing...')
+                    logger.warning(f'AUTO_IMPORT: inserting {added} new, updating {len(updates_list)} changed (skipped {skipped - len(updates_list)} unchanged)...')
 
                     from sqlalchemy.dialects.postgresql import insert as pg_insert
 
