@@ -65,7 +65,20 @@ def init_app(app):
         brands = Brand.query.options(
             joinedload(Brand.tv_models)
         ).order_by(Brand.name).all()
-        return render_template('index.html', brands=brands)
+        recent = TVModel.query.options(
+            joinedload(TVModel.brand),
+        ).filter(TVModel.software_version.isnot(None)).order_by(TVModel.date_added.desc()).limit(10).all()
+        return render_template('index.html', brands=brands, recent=recent)
+
+    @app.route('/recent-widget')
+    @login_required
+    def recent_widget():
+        from sqlalchemy.orm import joinedload
+        models = TVModel.query.options(
+            joinedload(TVModel.brand),
+            joinedload(TVModel.launcher_type),
+        ).order_by(TVModel.date_added.desc()).limit(10).all()
+        return render_template('recent_widget.html', models=models)
 
     @app.route('/brand/<int:brand_id>')
     @login_required
@@ -91,11 +104,15 @@ def init_app(app):
         # Для лота — числовая сортировка (лот может быть "1", "2", "11", "2/2")
         if sort == 'lot':
             try:
-                # Пробуем числовую сортировку через CAST
-                lot_num = func.cast(
-                    func.regexp_replace(TVModel.lot, r'[^0-9].*', '', 'g'),
-                    Integer
-                )
+                db_url = str(db.engine.url)
+                if 'postgresql' in db_url or 'postgres' in db_url:
+                    lot_num = func.cast(
+                        func.regexp_replace(TVModel.lot, r'[^0-9].*', '', 'g'),
+                        Integer
+                    )
+                else:
+                    # SQLite — сортируем как строку
+                    lot_num = TVModel.lot
                 sort_expr = lot_num.asc() if order == 'asc' else lot_num.desc()
             except Exception:
                 sort_expr = TVModel.lot.asc() if order == 'asc' else TVModel.lot.desc()
@@ -758,6 +775,7 @@ def init_app(app):
                     # Читаем threaded comments напрямую из XML внутри xlsx
                     logger.warning('AUTO_IMPORT: extracting threaded comments...')
                     comments_from_cells = {}
+                    dates_map = {}
                     try:
                         import zipfile as zf_mod
                         from xml.etree import ElementTree as ET
@@ -797,6 +815,15 @@ def init_app(app):
                                 if text_el is not None and text_el.text:
                                     comments_from_cells[(sname, row)] = text_el.text.strip()
                                     seen_refs.add(ref)
+                                # Дата из dT атрибута
+                                dt_str = tc.get('dT', '')
+                                if dt_str:
+                                    try:
+                                        from datetime import datetime
+                                        dt = datetime.fromisoformat(dt_str.rstrip('0').rstrip('.').replace('Z',''))
+                                        dates_map[(sname, row)] = dt
+                                    except Exception:
+                                        pass
                         zf.close()
                         logger.warning(f'AUTO_IMPORT: found {len(comments_from_cells)} threaded comments')
                     except Exception as ce:
@@ -820,11 +847,13 @@ def init_app(app):
                             'tester_name': m.tester_name,
                             'remote_control_id': m.remote_control_id,
                             'is_flashable': m.is_flashable,
+                            'date_added': m.date_added,
                         }
                         for m in db.session.query(
                             TVModel.brand_id, TVModel.model, TVModel.lot, TVModel.id,
                             TVModel.software_version, TVModel.specifications,
-                            TVModel.tester_name, TVModel.remote_control_id, TVModel.is_flashable
+                            TVModel.tester_name, TVModel.remote_control_id, TVModel.is_flashable,
+                            TVModel.date_added
                         ).all()
                     }
                     existing_set = set(existing_map.keys())
@@ -917,6 +946,16 @@ def init_app(app):
                                         upd['remote_control_id'] = remote_id
                                     if bool(flashable) != bool(cur['is_flashable']):
                                         upd['is_flashable'] = flashable
+                                    # Обновляем date_added если есть дата из комментария
+                                    # и текущая дата выглядит как дата массового импорта
+                                    tc_date = dates_map.get((sheet_name, row_num))
+                                    if tc_date and cur['date_added']:
+                                        # Обновляем если дата из комментария отличается более чем на час
+                                        diff = abs((tc_date - cur['date_added']).total_seconds())
+                                        if diff > 3600:
+                                            upd['date_added'] = tc_date
+                                    elif tc_date and not cur['date_added']:
+                                        upd['date_added'] = tc_date
                                     if len(upd) > 1:
                                         updates_list.append(upd)
                                 skipped += 1
@@ -932,6 +971,7 @@ def init_app(app):
                                 is_flashable=flashable,
                                 tester_name=tester or None,
                                 tester_id=None,
+                                date_added=dates_map.get((sheet_name, row_num)),
                             ))
                             existing_set.add((brand.id, model_name, lot))
                             added += 1
@@ -1041,6 +1081,7 @@ def init_app(app):
 
                     # Читаем threaded comments через zipfile
                     tc_comments = {}
+                    tc_dates = {}
                     try:
                         TC_NS = 'http://schemas.microsoft.com/office/spreadsheetml/2018/threadedcomments'
                         WB_NS = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
@@ -1073,6 +1114,14 @@ def init_app(app):
                                 if text_el is not None and text_el.text:
                                     tc_comments[(sname, row_num)] = text_el.text.strip()
                                     seen.add(ref)
+                                dt_str = tc.get('dT', '')
+                                if dt_str:
+                                    try:
+                                        from datetime import datetime
+                                        dt = datetime.fromisoformat(dt_str.rstrip('0').rstrip('.').replace('Z',''))
+                                        tc_dates[(sname, row_num)] = dt
+                                    except Exception:
+                                        pass
                         zf.close()
                     except Exception:
                         pass
@@ -1194,6 +1243,7 @@ def init_app(app):
                                 is_flashable=flashable,
                                 tester_name=tester or None,
                                 tester_id=current_user.id if tester else None,
+                                date_added=tc_dates.get((sheet_name, row_idx)) if row_idx else None,
                             )
                             db.session.add(tv)
                             existing_set.add((brand.id, model_name, lot))

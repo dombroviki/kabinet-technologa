@@ -7,7 +7,42 @@
         <a href="{{ url_for('import_all') }}" class="btn btn-secondary">⬆ Импорт</a>
     </div>
 </div>
-<div class="brands-grid">
+
+<!-- Последние 10 добавленных моделей -->
+<details class="recent-block" id="recentBlock">
+    <summary class="recent-summary">
+        <span>🕐 Последние добавленные модели</span>
+        <span class="recent-count">{{ recent|length }}</span>
+    </summary>
+    <div class="table-wrap" style="margin-top:12px;">
+        <table>
+            <thead>
+                <tr>
+                    <th>Модель</th>
+                    <th>Бренд</th>
+                    <th>Лот</th>
+                    <th>Версия ПО</th>
+                    <th>Добавлено</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for m in recent %}
+                <tr>
+                    <td><strong>{{ m.model }}</strong></td>
+                    <td>{{ m.brand.name }}</td>
+                    <td><span class="lot-chip">{{ m.lot }}</span></td>
+                    <td style="font-family:monospace; font-size:0.82rem;">{{ m.software_version or '—' }}</td>
+                    <td class="date-text">{{ m.date_added.strftime('%d.%m.%Y %H:%M') }}</td>
+                    <td><a href="{{ url_for('view_model', id=m.id) }}" class="btn btn-secondary btn-sm">👁</a></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</details>
+
+<div class="brands-grid" style="margin-top:24px;">
     {% for brand in brands %}
         <div class="brand-card">
             <div class="brand-top-bar"></div>
@@ -27,4 +62,56 @@
         </div>
     {% endfor %}
 </div>
+
+<style>
+.recent-block {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+}
+.recent-summary {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 20px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.9rem;
+    user-select: none;
+    list-style: none;
+}
+.recent-summary::-webkit-details-marker { display: none; }
+.recent-summary::before {
+    content: '▶';
+    font-size: 0.7rem;
+    color: var(--muted);
+    transition: transform 0.2s;
+}
+details[open] .recent-summary::before {
+    transform: rotate(90deg);
+}
+.recent-count {
+    background: var(--accent);
+    color: white;
+    border-radius: 20px;
+    padding: 2px 8px;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+.recent-block .table-wrap {
+    border-radius: 0;
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 0 !important;
+}
+</style>
+
+<script>
+// Запоминаем состояние раскрытия
+const key = 'recentOpen';
+const el = document.getElementById('recentBlock');
+if (localStorage.getItem(key) === '1') el.open = true;
+el.addEventListener('toggle', () => localStorage.setItem(key, el.open ? '1' : '0'));
+</script>
 {% endblock %}
