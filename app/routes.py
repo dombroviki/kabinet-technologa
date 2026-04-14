@@ -755,35 +755,50 @@ def init_app(app):
                     wb = openpyxl.load_workbook(file_bytes, data_only=True, read_only=True)
                     logger.warning(f'AUTO_IMPORT: workbook opened, sheets: {wb.sheetnames[:5]}')
 
-                    # Второй проход — читаем комментарии из ячеек (без read_only)
-                    logger.warning('AUTO_IMPORT: extracting comments...')
+                    # Читаем threaded comments напрямую из XML внутри xlsx
+                    logger.warning('AUTO_IMPORT: extracting threaded comments...')
                     comments_from_cells = {}
                     try:
+                        import zipfile as zf_mod
+                        from xml.etree import ElementTree as ET
+                        TC_NS = 'http://schemas.microsoft.com/office/spreadsheetml/2018/threadedcomments'
+                        WB_NS = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
+
                         file_bytes.seek(0)
-                        wb2 = openpyxl.load_workbook(file_bytes, data_only=True)
-                        skip_for_comments = {'Требования по качеству', '__comments__'}
-                        for sname in wb2.sheetnames:
-                            if sname in skip_for_comments:
+                        zf = zf_mod.ZipFile(file_bytes)
+                        wb_xml = ET.fromstring(zf.read('xl/workbook.xml'))
+                        sheets_order = [s.get('name') for s in wb_xml.findall(f'.//{{{WB_NS}}}sheet')]
+
+                        for i, sname in enumerate(sheets_order, start=1):
+                            rels_path = f'xl/worksheets/_rels/sheet{i}.xml.rels'
+                            if rels_path not in zf.namelist():
                                 continue
-                            ws2 = wb2[sname]
-                            # Определяем колонку Версия ПО
-                            sw_col2 = 10
-                            for hr in ws2.iter_rows(min_row=3, max_row=4, values_only=False):
-                                for ci, hc in enumerate(hr):
-                                    v = str(hc.value or '').strip().lower()
-                                    if 'версия по' in v or 'версия пo' in v:
-                                        sw_col2 = ci + 1
-                            for row2 in ws2.iter_rows(min_row=5, values_only=False):
-                                cell = row2[sw_col2 - 1] if len(row2) >= sw_col2 else None
-                                if cell and cell.comment and cell.comment.text:
-                                    raw = cell.comment.text.strip()
-                                    marker = 'Comment:'
-                                    if marker in raw:
-                                        raw = raw[raw.index(marker) + len(marker):].strip()
-                                    if raw:
-                                        comments_from_cells[(sname, cell.row)] = raw
-                        wb2.close()
-                        logger.warning(f'AUTO_IMPORT: found {len(comments_from_cells)} comments in cells')
+                            rels_xml = ET.fromstring(zf.read(rels_path))
+                            tc_file = None
+                            for r in rels_xml:
+                                if 'threadedComment' in r.get('Type', ''):
+                                    tc_file = 'xl/threadedComments/' + r.get('Target', '').split('/')[-1]
+                                    break
+                            if not tc_file or tc_file not in zf.namelist():
+                                continue
+                            tc_xml = ET.fromstring(zf.read(tc_file))
+                            seen_refs = set()
+                            for tc in tc_xml.findall(f'{{{TC_NS}}}threadedComment'):
+                                if tc.get('parentId'):
+                                    continue
+                                ref = tc.get('ref', '')
+                                col = ''.join(c for c in ref if c.isalpha())
+                                if col != 'J':
+                                    continue
+                                if ref in seen_refs:
+                                    continue
+                                row = int(''.join(c for c in ref if c.isdigit()))
+                                text_el = tc.find(f'{{{TC_NS}}}text')
+                                if text_el is not None and text_el.text:
+                                    comments_from_cells[(sname, row)] = text_el.text.strip()
+                                    seen_refs.add(ref)
+                        zf.close()
+                        logger.warning(f'AUTO_IMPORT: found {len(comments_from_cells)} threaded comments')
                     except Exception as ce:
                         logger.warning(f'AUTO_IMPORT: comment extraction failed: {ce}')
 
@@ -1020,9 +1035,50 @@ def init_app(app):
                     db.session.flush()
 
                 if ext in ('xlsx', 'xls'):
-                    import openpyxl
+                    import openpyxl, zipfile as zf_mod
+                    from xml.etree import ElementTree as ET
                     file_bytes = io.BytesIO(file.read())
-                    wb = openpyxl.load_workbook(file_bytes, data_only=True)
+
+                    # Читаем threaded comments через zipfile
+                    tc_comments = {}
+                    try:
+                        TC_NS = 'http://schemas.microsoft.com/office/spreadsheetml/2018/threadedcomments'
+                        WB_NS = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
+                        zf = zf_mod.ZipFile(file_bytes)
+                        wb_xml = ET.fromstring(zf.read('xl/workbook.xml'))
+                        sheets_order = [s.get('name') for s in wb_xml.findall(f'.//{{{WB_NS}}}sheet')]
+                        for i, sname in enumerate(sheets_order, start=1):
+                            rels_path = f'xl/worksheets/_rels/sheet{i}.xml.rels'
+                            if rels_path not in zf.namelist():
+                                continue
+                            rels_xml = ET.fromstring(zf.read(rels_path))
+                            tc_file = None
+                            for r in rels_xml:
+                                if 'threadedComment' in r.get('Type', ''):
+                                    tc_file = 'xl/threadedComments/' + r.get('Target', '').split('/')[-1]
+                                    break
+                            if not tc_file or tc_file not in zf.namelist():
+                                continue
+                            tc_xml = ET.fromstring(zf.read(tc_file))
+                            seen = set()
+                            for tc in tc_xml.findall(f'{{{TC_NS}}}threadedComment'):
+                                if tc.get('parentId'):
+                                    continue
+                                ref = tc.get('ref', '')
+                                col = ''.join(c for c in ref if c.isalpha())
+                                if col != 'J' or ref in seen:
+                                    continue
+                                row_num = int(''.join(c for c in ref if c.isdigit()))
+                                text_el = tc.find(f'{{{TC_NS}}}text')
+                                if text_el is not None and text_el.text:
+                                    tc_comments[(sname, row_num)] = text_el.text.strip()
+                                    seen.add(ref)
+                        zf.close()
+                    except Exception:
+                        pass
+
+                    file_bytes.seek(0)
+                    wb = openpyxl.load_workbook(file_bytes, data_only=True, read_only=True)
 
                     skip_sheets = {'Требования по качеству'}
 
@@ -1097,15 +1153,12 @@ def init_app(app):
                             sw_version = _cell_str(row, col_sw)
                             remote     = _cell_str(row, col_remote)
 
-                            # Характеристики из комментария ячейки
+                            # Характеристики из threaded comments
                             sw_comment = ''
                             try:
-                                if len(row) > col_sw and hasattr(row[col_sw], 'comment') and row[col_sw].comment and row[col_sw].comment.text:
-                                    raw = row[col_sw].comment.text.strip()
-                                    marker = 'Comment:'
-                                    if marker in raw:
-                                        raw = raw[raw.index(marker) + len(marker):].strip()
-                                    sw_comment = raw
+                                row_idx = row[0].row if hasattr(row[0], 'row') else None
+                                if row_idx:
+                                    sw_comment = tc_comments.get((sheet_name, row_idx), '')
                             except Exception:
                                 pass
 
