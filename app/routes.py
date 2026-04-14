@@ -755,6 +755,38 @@ def init_app(app):
                     wb = openpyxl.load_workbook(file_bytes, data_only=True, read_only=True)
                     logger.warning(f'AUTO_IMPORT: workbook opened, sheets: {wb.sheetnames[:5]}')
 
+                    # Второй проход — читаем комментарии из ячеек (без read_only)
+                    logger.warning('AUTO_IMPORT: extracting comments...')
+                    comments_from_cells = {}
+                    try:
+                        file_bytes.seek(0)
+                        wb2 = openpyxl.load_workbook(file_bytes, data_only=True)
+                        skip_for_comments = {'Требования по качеству', '__comments__'}
+                        for sname in wb2.sheetnames:
+                            if sname in skip_for_comments:
+                                continue
+                            ws2 = wb2[sname]
+                            # Определяем колонку Версия ПО
+                            sw_col2 = 10
+                            for hr in ws2.iter_rows(min_row=3, max_row=4, values_only=False):
+                                for ci, hc in enumerate(hr):
+                                    v = str(hc.value or '').strip().lower()
+                                    if 'версия по' in v or 'версия пo' in v:
+                                        sw_col2 = ci + 1
+                            for row2 in ws2.iter_rows(min_row=5, values_only=False):
+                                cell = row2[sw_col2 - 1] if len(row2) >= sw_col2 else None
+                                if cell and cell.comment and cell.comment.text:
+                                    raw = cell.comment.text.strip()
+                                    marker = 'Comment:'
+                                    if marker in raw:
+                                        raw = raw[raw.index(marker) + len(marker):].strip()
+                                    if raw:
+                                        comments_from_cells[(sname, cell.row)] = raw
+                        wb2.close()
+                        logger.warning(f'AUTO_IMPORT: found {len(comments_from_cells)} comments in cells')
+                    except Exception as ce:
+                        logger.warning(f'AUTO_IMPORT: comment extraction failed: {ce}')
+
                     launcher_name = 'собственный'
                     launcher = LauncherType.query.filter_by(name=launcher_name).first()
                     if not launcher:
@@ -783,24 +815,12 @@ def init_app(app):
                     existing_set = set(existing_map.keys())
                     logger.warning(f'AUTO_IMPORT: caches loaded, existing models: {len(existing_set)}')
 
-                    skip_sheets = {'Требования по качеству', '__comments__'}
+                    skip_sheets = {'Требования по качеству'}
                     BATCH = 500
                     added = skipped = 0
                     updates_list = []
                     new_models = []
 
-                    comments_map = {}
-                    if '__comments__' in wb.sheetnames:
-                        try:
-                            cs = wb['__comments__']
-                            for crow in cs.iter_rows(min_row=2, values_only=True):
-                                if not crow or len(crow) < 3:
-                                    continue
-                                c_sheet, c_row, c_text = crow[0], crow[1], crow[2]
-                                if c_sheet and c_row and c_text:
-                                    comments_map[(str(c_sheet).strip(), int(c_row))] = str(c_text).strip()
-                        except Exception:
-                            pass
 
                     for sheet_name in wb.sheetnames:
                         if sheet_name in skip_sheets:
@@ -855,7 +875,7 @@ def init_app(app):
                             flashable  = _cell_str(row, col_flash).lower() == 'да'
                             sw_version = _cell_str(row, col_sw)
                             remote     = _cell_str(row, col_remote)
-                            sw_comment = comments_map.get((sheet_name, row_num), '')
+                            sw_comment = comments_from_cells.get((sheet_name, row_num), '')
 
                             remote_id = None
                             if remote:
@@ -1002,7 +1022,7 @@ def init_app(app):
                 if ext in ('xlsx', 'xls'):
                     import openpyxl
                     file_bytes = io.BytesIO(file.read())
-                    wb = openpyxl.load_workbook(file_bytes, data_only=True, read_only=True)
+                    wb = openpyxl.load_workbook(file_bytes, data_only=True)
 
                     skip_sheets = {'Требования по качеству'}
 
