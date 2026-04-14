@@ -1,20 +1,20 @@
-@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Outfit:wght@300;400;500;600;700&display=swap');
 
 :root {
-    --bg:        #0f1117;
-    --surface:   #181c26;
-    --surface2:  #1e2233;
-    --border:    #2a2f45;
-    --accent:    #4f8ef0;
-    --accent2:   #7c5fe6;
-    --accent-g:  linear-gradient(135deg, #4f8ef0, #7c5fe6);
-    --success:   #34c87a;
-    --danger:    #f05a5a;
-    --warning:   #f0b429;
-    --text:      #e8eaf6;
-    --text2:     #9099b8;
-    --muted:     #555d78;
-    --glow-blue: rgba(79, 142, 240, 0.15);
+    --bg:        #0e1120;
+    --surface:   #161928;
+    --surface2:  #1d2135;
+    --border:    #2c3356;
+    --accent:    #60a5fa;
+    --accent2:   #a78bfa;
+    --accent-g:  linear-gradient(135deg, #60a5fa, #a78bfa);
+    --success:   #4ade80;
+    --danger:    #f87171;
+    --warning:   #fbbf24;
+    --text:      #f8faff;
+    --text2:     #b8c0e0;
+    --muted:     #7280a8;
+    --glow-blue: rgba(96, 165, 250, 0.2);
 }
 
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
@@ -23,7 +23,7 @@
 html { height: 100%; }
 
 body {
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Outfit', sans-serif;
     background: var(--bg);
     color: var(--text);
     line-height: 1.65;
@@ -33,13 +33,16 @@ body {
 }
 
 /* Фон — через псевдоэлемент на html чтобы не было полосы при скролле */
+html {
+    overflow-x: hidden;
+}
 html::before {
     content: '';
     position: fixed;
     inset: 0;
     background-image:
-        radial-gradient(ellipse 80% 50% at 15% 0%, rgba(79,142,240,0.10) 0%, transparent 60%),
-        radial-gradient(ellipse 50% 40% at 90% 100%, rgba(124,95,230,0.08) 0%, transparent 55%);
+        radial-gradient(ellipse 80% 50% at 15% 0%, rgba(91,156,246,0.12) 0%, transparent 60%),
+        radial-gradient(ellipse 50% 40% at 90% 100%, rgba(155,127,244,0.10) 0%, transparent 55%);
     pointer-events: none;
     z-index: 0;
 }
@@ -205,7 +208,7 @@ h2 {
     border: none;
     outline: none;
     color: var(--text);
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Outfit', sans-serif;
     font-size: 0.9rem;
     width: 100%;
     padding: 0;
@@ -275,7 +278,7 @@ tbody tr:hover { background: rgba(91,141,238,0.05); }
 .btn {
     display: inline-flex; align-items: center; justify-content: center; gap: 6px;
     padding: 9px 18px; border-radius: 10px; font-size: 0.85rem; font-weight: 500;
-    font-family: 'DM Sans', sans-serif; border: 1px solid transparent; cursor: pointer;
+    font-family: 'Outfit', sans-serif; border: 1px solid transparent; cursor: pointer;
     text-decoration: none; transition: all 0.22s cubic-bezier(0.34,1.56,0.64,1); white-space: nowrap;
 }
 .btn-primary { background: var(--accent-g); color: white; border: none; box-shadow: 0 4px 16px rgba(91,141,238,0.35); margin-top: 10px; margin-bottom: 10px; }
@@ -289,7 +292,7 @@ tbody tr:hover { background: rgba(91,141,238,0.05); }
 button[type="submit"] {
     display: inline-flex; align-items: center; gap: 7px;
     padding: 12px 26px; background: var(--accent-g); color: white; border: none;
-    border-radius: 11px; font-family: 'DM Sans', sans-serif; font-size: 0.93rem; font-weight: 600;
+    border-radius: 11px; font-family: 'Outfit', sans-serif; font-size: 0.93rem; font-weight: 600;
     cursor: pointer; box-shadow: 0 5px 18px rgba(91,141,238,0.4);
     transition: all 0.25s cubic-bezier(0.34,1.56,0.64,1);
 }
@@ -324,7 +327,7 @@ label {
 input[type="text"], input[type="number"], input[type="password"], textarea, select {
     width: 100%; padding: 12px 16px; background: var(--surface2);
     border: 1px solid var(--border); border-radius: 11px; color: var(--text);
-    font-family: 'DM Sans', sans-serif; font-size: 0.93rem; transition: all 0.2s;
+    font-family: 'Outfit', sans-serif; font-size: 0.93rem; transition: all 0.2s;
     outline: none; -webkit-appearance: none; appearance: none;
 }
 input::placeholder, textarea::placeholder { color: var(--muted); }
@@ -762,7 +765,7 @@ footer { border-top: 1px solid var(--border); padding: 22px 0; text-align: cente
     border: none;
     outline: none;
     color: var(--text);
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Outfit', sans-serif;
     font-size: 0.85rem;
     width: 100%;
     padding: 0;
@@ -780,7 +783,7 @@ footer { border-top: 1px solid var(--border); padding: 22px 0; text-align: cente
     background: none;
     border: none;
     cursor: pointer;
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Outfit', sans-serif;
     font-size: 0.88rem;
     font-weight: 500;
 }
@@ -922,4 +925,808 @@ footer { border-top: 1px solid var(--border); padding: 22px 0; text-align: cente
     margin-bottom: 4px;
     min-width: 0;
     overflow: hidden;
+}
+
+/* ═══════════════════════════════════════════════
+   ENHANCED ANIMATIONS & MICRO-INTERACTIONS
+   ═══════════════════════════════════════════════ */
+
+/* ── Улучшенный pageIn с blur ── */
+@keyframes pageIn {
+    from { opacity: 0; transform: translateY(22px); filter: blur(4px); }
+    to   { opacity: 1; transform: translateY(0);    filter: blur(0); }
+}
+
+/* ── Карточки с пружинным эффектом ── */
+@keyframes cardIn {
+    from { opacity: 0; transform: translateY(20px) scale(0.94); filter: blur(3px); }
+    to   { opacity: 1; transform: translateY(0)    scale(1);    filter: blur(0); }
+}
+
+/* ── Строки таблицы ── */
+@keyframes rowIn {
+    from { opacity: 0; transform: translateX(-12px); }
+    to   { opacity: 1; transform: translateX(0); }
+}
+
+/* ── Skeleton loading ── */
+@keyframes shimmer {
+    0%   { background-position: -200% 0; }
+    100% { background-position:  200% 0; }
+}
+.skeleton {
+    background: linear-gradient(90deg,
+        var(--surface2) 25%,
+        rgba(255,255,255,0.05) 50%,
+        var(--surface2) 75%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.4s infinite;
+    border-radius: 6px;
+}
+
+/* ── Ripple на кнопках ── */
+.btn { position: relative; overflow: hidden; }
+.btn::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle, rgba(255,255,255,0.25) 0%, transparent 70%);
+    opacity: 0;
+    transform: scale(0);
+    transition: transform 0.4s, opacity 0.4s;
+}
+.btn:active::after {
+    transform: scale(2.5);
+    opacity: 1;
+    transition: 0s;
+}
+
+/* ── Улучшенные brand-card ── */
+.brand-card {
+    transition:
+        transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
+        border-color 0.3s,
+        box-shadow 0.3s;
+}
+.brand-card:hover {
+    transform: translateY(-10px) scale(1.04) rotate(-0.5deg);
+    border-color: rgba(79, 142, 240, 0.6);
+    box-shadow:
+        0 28px 56px rgba(0,0,0,0.6),
+        0 0 50px rgba(79, 142, 240, 0.2),
+        inset 0 1px 0 rgba(255,255,255,0.08);
+}
+
+/* Счётчик моделей — pulse при hover */
+.brand-card:hover .brand-count {
+    animation: countPulse 0.6s cubic-bezier(0.34,1.56,0.64,1);
+}
+@keyframes countPulse {
+    0%   { transform: scale(1); }
+    50%  { transform: scale(1.15); color: var(--accent); }
+    100% { transform: scale(1); }
+}
+
+/* Топ-бар brand-card — slide in при hover */
+.brand-top-bar {
+    height: 3px;
+    background: var(--accent-g);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.35s cubic-bezier(0.22,1,0.36,1);
+}
+.brand-card:hover .brand-top-bar { transform: scaleX(1); }
+
+/* ── Иконка телека — покачивание при hover ── */
+.brand-card:hover .brand-icon {
+    animation: tvWobble 0.5s cubic-bezier(0.36,0.07,0.19,0.97);
+}
+@keyframes tvWobble {
+    0%,100% { transform: rotate(0deg); }
+    20%  { transform: rotate(-8deg); }
+    40%  { transform: rotate(8deg); }
+    60%  { transform: rotate(-4deg); }
+    80%  { transform: rotate(4deg); }
+}
+
+/* ── Строки таблицы — highlight при hover ── */
+tbody tr {
+    transition: background 0.2s, transform 0.2s;
+}
+tbody tr:hover {
+    background: rgba(79, 142, 240, 0.06);
+    transform: translateX(3px);
+}
+
+/* ── Lot chip — glow при hover ── */
+.lot-chip {
+    transition: all 0.2s cubic-bezier(0.34,1.56,0.64,1);
+}
+.lot-chip:hover {
+    transform: scale(1.15);
+    box-shadow: 0 0 12px rgba(124, 95, 230, 0.5);
+}
+
+/* ── Навигация — underline slide ── */
+.nav-link {
+    position: relative;
+}
+.nav-link::after {
+    content: '';
+    position: absolute;
+    bottom: -2px; left: 0; right: 0;
+    height: 2px;
+    background: var(--accent-g);
+    transform: scaleX(0);
+    transition: transform 0.25s cubic-bezier(0.22,1,0.36,1);
+}
+.nav-link:hover::after { transform: scaleX(1); }
+
+/* ── Поиск — focus glow ── */
+.search-input:focus,
+.global-search-input:focus {
+    box-shadow:
+        0 0 0 3px rgba(79, 142, 240, 0.2),
+        0 0 20px rgba(79, 142, 240, 0.1);
+    border-color: rgba(79, 142, 240, 0.6);
+    transition: all 0.3s;
+}
+
+/* ── Flash badge при появлении ── */
+.model-badge {
+    transition: all 0.2s;
+}
+.model-badge:hover {
+    color: var(--accent);
+    transform: translateX(4px);
+}
+
+/* ── Кнопки — улучшенный hover ── */
+.btn-primary {
+    transition: all 0.25s cubic-bezier(0.34,1.56,0.64,1);
+}
+.btn-primary:hover {
+    transform: translateY(-2px) scale(1.03);
+    box-shadow: 0 8px 24px rgba(79, 142, 240, 0.4);
+}
+
+.btn-secondary {
+    transition: all 0.2s;
+}
+.btn-secondary:hover {
+    transform: translateY(-1px);
+    border-color: rgba(79, 142, 240, 0.4);
+}
+
+/* ── Flash badge — прошивается ── */
+.flash-badge {
+    transition: all 0.25s cubic-bezier(0.34,1.56,0.64,1);
+}
+.flash-badge:hover {
+    transform: scale(1.08);
+    box-shadow: 0 0 16px rgba(52, 200, 122, 0.5);
+}
+
+/* ── Форма — поля ── */
+.form-group input,
+.form-group select,
+.form-group textarea {
+    transition: all 0.25s;
+}
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 20px rgba(79, 142, 240, 0.15);
+}
+
+/* ── Плавное появление страниц ── */
+.form-card {
+    animation: cardIn 0.5s cubic-bezier(0.22,1,0.36,1) both;
+}
+
+/* ── Stagger для brand-card до 20 штук ── */
+.brand-card:nth-child(8){animation-delay:.32s}
+.brand-card:nth-child(9){animation-delay:.36s}
+.brand-card:nth-child(10){animation-delay:.40s}
+.brand-card:nth-child(11){animation-delay:.44s}
+.brand-card:nth-child(12){animation-delay:.48s}
+.brand-card:nth-child(13){animation-delay:.52s}
+.brand-card:nth-child(14){animation-delay:.56s}
+.brand-card:nth-child(15){animation-delay:.60s}
+.brand-card:nth-child(16){animation-delay:.64s}
+.brand-card:nth-child(17){animation-delay:.68s}
+.brand-card:nth-child(18){animation-delay:.72s}
+.brand-card:nth-child(19){animation-delay:.76s}
+.brand-card:nth-child(20){animation-delay:.80s}
+
+/* ── Stagger для строк таблицы ── */
+tbody tr:nth-child(5){animation-delay:.20s}
+tbody tr:nth-child(6){animation-delay:.24s}
+tbody tr:nth-child(7){animation-delay:.28s}
+tbody tr:nth-child(8){animation-delay:.32s}
+tbody tr:nth-child(9){animation-delay:.36s}
+tbody tr:nth-child(10){animation-delay:.40s}
+
+/* ── Scroll reveal ── */
+.reveal {
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.6s cubic-bezier(0.22,1,0.36,1), transform 0.6s cubic-bezier(0.22,1,0.36,1);
+}
+.reveal.visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+
+
+/* ── УЛУЧШЕННАЯ ЧИТАБЕЛЬНОСТЬ ── */
+
+/* Карточки бренда — чёткий бордер, внутренний свет */
+.brand-card {
+    background: linear-gradient(145deg, var(--surface2) 0%, var(--surface) 100%) !important;
+    border-color: rgba(91, 156, 246, 0.18) !important;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.04);
+}
+
+/* Иконка бренда — ярче */
+.brand-icon {
+    font-size: 1.6rem;
+    filter: drop-shadow(0 0 8px rgba(91,156,246,0.4));
+}
+
+/* Название бренда — максимальный контраст */
+.brand-name {
+    color: #f0f2ff !important;
+    font-size: 1.05rem !important;
+    letter-spacing: 0.02em;
+}
+
+/* Счётчик — виден чётко */
+.brand-count {
+    color: #adb5d6 !important;
+    font-size: 0.82rem;
+}
+.count-dot {
+    background: var(--accent) !important;
+    box-shadow: 0 0 6px var(--accent);
+}
+
+/* Заголовки страниц */
+h1 {
+    color: #f0f2ff;
+    text-shadow: 0 0 40px rgba(91,156,246,0.15);
+}
+
+/* Таблица — чётче строки */
+thead th {
+    color: #c8cde8 !important;
+    background: rgba(49,55,97,0.5) !important;
+    font-size: 0.72rem;
+    letter-spacing: 0.12em;
+}
+
+tbody tr:hover {
+    background: rgba(91, 156, 246, 0.08) !important;
+}
+
+/* Версия ПО — моноширинный с подсветкой */
+.sw-version, td code {
+    color: #7ec8f5;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 0.82rem;
+}
+
+/* Lot chip — ярче */
+.lot-chip {
+    background: rgba(155, 127, 244, 0.2) !important;
+    border-color: rgba(155, 127, 244, 0.4) !important;
+    color: #c4b0ff !important;
+    font-weight: 600;
+}
+
+/* Навигация */
+nav .nav-links a, nav a {
+    color: #c0c8e8;
+}
+
+/* Breadcrumb */
+.breadcrumb .current {
+    color: #f0f2ff;
+}
+
+/* Кнопки — ярче */
+.btn-primary {
+    background: linear-gradient(135deg, #5b9cf6, #9b7ff4) !important;
+    box-shadow: 0 4px 16px rgba(91,156,246,0.35);
+    font-weight: 600;
+}
+
+.btn-secondary {
+    border-color: rgba(91,156,246,0.3) !important;
+    color: #c0c8e8 !important;
+}
+.btn-secondary:hover {
+    background: rgba(91,156,246,0.12) !important;
+    color: #f0f2ff !important;
+}
+
+/* Flash badge */
+.flash-badge {
+    background: rgba(61,214,140,0.15) !important;
+    border-color: rgba(61,214,140,0.4) !important;
+    color: #3dd68c !important;
+}
+
+/* No-flash badge */
+.no-flash-badge {
+    color: #8a90b0 !important;
+}
+
+/* Фоновый градиент — чуть ярче */
+html::before {
+    background-image:
+        radial-gradient(ellipse 80% 50% at 15% 0%, rgba(91,156,246,0.14) 0%, transparent 60%),
+        radial-gradient(ellipse 50% 40% at 90% 100%, rgba(155,127,244,0.12) 0%, transparent 55%) !important;
+}
+
+/* Шапка — чуть светлее */
+header {
+    background: rgba(22,25,38,0.85) !important;
+    border-bottom-color: rgba(49,55,97,0.8) !important;
+}
+
+/* Поле поиска */
+.global-search-input {
+    color: #f0f2ff !important;
+}
+.global-search-input::placeholder {
+    color: #6b75a0 !important;
+}
+
+/* ═══════════════════════════════════════
+   REDESIGN v2 — HIGH CONTRAST & CLARITY
+   ═══════════════════════════════════════ */
+
+/* ── Body background ── */
+body {
+    background: var(--bg) !important;
+}
+
+/* ── Brand cards — значительно светлее и контрастнее ── */
+.brand-card {
+    background: linear-gradient(145deg, #1d2135 0%, #161928 100%) !important;
+    border: 1px solid rgba(96, 165, 250, 0.2) !important;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05) !important;
+    transition: transform 0.35s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.3s, border-color 0.3s !important;
+}
+.brand-card:hover {
+    border-color: rgba(96, 165, 250, 0.55) !important;
+    box-shadow: 0 20px 48px rgba(0,0,0,0.5), 0 0 40px rgba(96,165,250,0.15), inset 0 1px 0 rgba(255,255,255,0.08) !important;
+    transform: translateY(-8px) scale(1.03) !important;
+}
+
+/* Иконка — цветная для каждого бренда */
+.brand-icon {
+    width: 48px; height: 48px;
+    background: linear-gradient(135deg, rgba(96,165,250,0.2), rgba(167,139,250,0.2)) !important;
+    border: 1px solid rgba(96,165,250,0.25);
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.5rem;
+    margin-bottom: 14px;
+    transition: all 0.3s;
+}
+.brand-card:hover .brand-icon {
+    background: linear-gradient(135deg, rgba(96,165,250,0.3), rgba(167,139,250,0.3)) !important;
+    border-color: rgba(96,165,250,0.5);
+    box-shadow: 0 0 20px rgba(96,165,250,0.2);
+}
+
+.brand-name {
+    font-family: 'Syne', sans-serif !important;
+    font-size: 1rem !important;
+    font-weight: 700 !important;
+    color: #f8faff !important;
+    letter-spacing: 0.03em;
+    margin-bottom: 8px;
+}
+
+.brand-count {
+    color: #b8c0e0 !important;
+    font-size: 0.82rem;
+    display: flex; align-items: center; gap: 6px;
+}
+
+.count-dot {
+    width: 6px; height: 6px;
+    background: var(--accent) !important;
+    border-radius: 50%;
+    box-shadow: 0 0 8px var(--accent);
+}
+
+/* ── Заголовки ── */
+h1 {
+    color: #f8faff !important;
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+}
+
+/* ── Навигация ── */
+header {
+    background: rgba(14, 17, 32, 0.92) !important;
+    border-bottom: 1px solid rgba(44,51,86,0.9) !important;
+    backdrop-filter: blur(28px) !important;
+}
+
+/* ── Таблица ── */
+.table-wrap {
+    background: #161928 !important;
+    border-color: rgba(44,51,86,0.8) !important;
+}
+
+thead th {
+    background: rgba(29,33,53,0.9) !important;
+    color: #b8c0e0 !important;
+    font-size: 0.7rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    font-weight: 600;
+}
+
+tbody tr {
+    border-bottom: 1px solid rgba(44,51,86,0.5) !important;
+}
+tbody td {
+    color: #e8ecfa !important;
+}
+tbody tr:hover {
+    background: rgba(96,165,250,0.07) !important;
+}
+
+/* ── Lot chip ── */
+.lot-chip {
+    background: rgba(167,139,250,0.18) !important;
+    border: 1px solid rgba(167,139,250,0.35) !important;
+    color: #c4b5fd !important;
+    font-weight: 600;
+    font-size: 0.78rem;
+    padding: 3px 10px;
+    border-radius: 20px;
+}
+
+/* ── Кнопки ── */
+.btn-primary {
+    background: linear-gradient(135deg, #3b82f6, #8b5cf6) !important;
+    border: none !important;
+    color: white !important;
+    font-weight: 600;
+    box-shadow: 0 4px 16px rgba(59,130,246,0.35) !important;
+}
+.btn-primary:hover {
+    box-shadow: 0 8px 28px rgba(59,130,246,0.5) !important;
+    transform: translateY(-2px) !important;
+}
+.btn-secondary {
+    background: rgba(29,33,53,0.8) !important;
+    border: 1px solid rgba(96,165,250,0.25) !important;
+    color: #b8c0e0 !important;
+}
+.btn-secondary:hover {
+    background: rgba(96,165,250,0.12) !important;
+    border-color: rgba(96,165,250,0.45) !important;
+    color: #f8faff !important;
+}
+
+/* ── Flash badges ── */
+.flash-badge {
+    background: rgba(74,222,128,0.15) !important;
+    border: 1px solid rgba(74,222,128,0.35) !important;
+    color: #4ade80 !important;
+    font-size: 0.72rem; font-weight: 700;
+}
+
+/* ── Поиск ── */
+.global-search-input {
+    background: rgba(22,25,40,0.9) !important;
+    border-color: rgba(44,51,86,0.8) !important;
+    color: #f8faff !important;
+}
+.global-search-input:focus {
+    border-color: rgba(96,165,250,0.5) !important;
+    box-shadow: 0 0 0 3px rgba(96,165,250,0.15) !important;
+}
+.global-search-input::placeholder { color: #7280a8 !important; }
+
+/* ── Form cards ── */
+.form-card {
+    background: #161928 !important;
+    border: 1px solid rgba(44,51,86,0.8) !important;
+}
+
+/* ── Recent block ── */
+.recent-block {
+    background: #161928 !important;
+    border: 1px solid rgba(44,51,86,0.8) !important;
+}
+
+/* ── Details animate ── */
+details > div {
+    overflow: hidden;
+    animation: detailsOpen 0.3s cubic-bezier(0.22,1,0.36,1);
+}
+@keyframes detailsOpen {
+    from { opacity: 0; transform: translateY(-8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Скрываем полосу прокрутки (для десктоп приложения) ── */
+::-webkit-scrollbar { width: 0px; background: transparent; }
+::-webkit-scrollbar-thumb { background: transparent; }
+* { scrollbar-width: none; -ms-overflow-style: none; }
+
+/* ═══════════════════════════════════════
+   VISUAL OVERHAUL — ALL PAGES
+   ═══════════════════════════════════════ */
+
+/* ── Model cards — лучший контраст ── */
+.model-card {
+    background: linear-gradient(135deg, #1d2135 0%, #181c2e 100%) !important;
+    border: 1px solid rgba(44, 51, 86, 0.9) !important;
+    border-radius: 14px !important;
+    transition: border-color 0.25s, box-shadow 0.25s, transform 0.2s !important;
+}
+.model-card:hover {
+    border-color: rgba(96, 165, 250, 0.35) !important;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.3), 0 0 0 1px rgba(96,165,250,0.1) !important;
+    transform: translateX(2px);
+}
+.model-card.open {
+    border-color: rgba(96, 165, 250, 0.5) !important;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 0 0 1px rgba(96,165,250,0.15) !important;
+}
+
+/* Название модели — ярче */
+.model-card-name {
+    font-size: 1rem !important;
+    color: #f0f4ff !important;
+    font-weight: 700 !important;
+    letter-spacing: -0.01em;
+}
+
+/* SW версия */
+.model-card-sw {
+    color: #7ec8f5 !important;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 0.8rem !important;
+}
+
+/* Flash pill */
+.flash-pill.yes {
+    background: rgba(74,222,128,0.12) !important;
+    border: 1px solid rgba(74,222,128,0.3) !important;
+    color: #4ade80 !important;
+    font-weight: 600;
+}
+.flash-pill.no {
+    background: rgba(100,116,139,0.1) !important;
+    border: 1px solid rgba(100,116,139,0.25) !important;
+    color: #94a3b8 !important;
+}
+
+/* Раскрытая панель */
+.model-card-panel {
+    background: rgba(15,18,30,0.6) !important;
+    border-top: 1px solid rgba(44,51,86,0.8) !important;
+}
+
+.mcd-label {
+    color: #5b6b99 !important;
+    font-size: 0.63rem !important;
+    letter-spacing: 0.12em;
+}
+.mcd-value {
+    color: #d4dcf5 !important;
+    font-size: 0.87rem !important;
+}
+
+/* Chevron */
+.model-card-chevron {
+    color: #4a5578 !important;
+    font-size: 1.2rem !important;
+    width: 24px;
+    text-align: center;
+}
+.model-card.open .model-card-chevron {
+    color: var(--accent) !important;
+}
+
+/* Model dot */
+.model-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent);
+    flex-shrink: 0;
+}
+
+/* ── Sort/filter bar ── */
+.sort-chip {
+    background: rgba(29,33,53,0.9) !important;
+    border-color: rgba(44,51,86,0.9) !important;
+    color: #8892b8 !important;
+    font-size: 0.78rem !important;
+    padding: 5px 14px !important;
+    border-radius: 20px !important;
+    transition: all 0.2s cubic-bezier(0.34,1.56,0.64,1) !important;
+}
+.sort-chip:hover {
+    color: #f0f4ff !important;
+    border-color: rgba(96,165,250,0.4) !important;
+    transform: translateY(-1px);
+}
+.sort-chip.active {
+    background: rgba(96,165,250,0.15) !important;
+    color: #60a5fa !important;
+    border-color: rgba(96,165,250,0.4) !important;
+    box-shadow: 0 0 12px rgba(96,165,250,0.1);
+}
+
+/* ── Search bar ── */
+.search-bar {
+    background: rgba(22,25,40,0.9) !important;
+    border: 1px solid rgba(44,51,86,0.9) !important;
+    border-radius: 12px !important;
+    transition: all 0.25s !important;
+}
+.search-bar:focus-within {
+    border-color: rgba(96,165,250,0.5) !important;
+    box-shadow: 0 0 0 3px rgba(96,165,250,0.12) !important;
+}
+.search-bar input {
+    color: #f0f4ff !important;
+    background: transparent !important;
+}
+.search-bar input::placeholder { color: #4a5578 !important; }
+
+/* ── Header page title ── */
+.models-header h1 {
+    font-size: 2rem !important;
+    background: linear-gradient(135deg, #f0f4ff, #a8b8e8);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+.models-header h1 span {
+    -webkit-text-fill-color: #4a5578 !important;
+}
+
+/* ── Breadcrumb ── */
+.breadcrumb a {
+    color: #6b7db8 !important;
+    transition: color 0.2s;
+}
+.breadcrumb a:hover { color: #60a5fa !important; }
+.breadcrumb .current { color: #c0cae8 !important; }
+.breadcrumb .sep { color: #2c3356 !important; }
+
+/* ── Pagination ── */
+.page-link {
+    background: rgba(29,33,53,0.9) !important;
+    border: 1px solid rgba(44,51,86,0.9) !important;
+    color: #8892b8 !important;
+    border-radius: 8px !important;
+    transition: all 0.2s;
+}
+.page-link:hover {
+    border-color: rgba(96,165,250,0.4) !important;
+    color: #f0f4ff !important;
+}
+.page-current {
+    background: rgba(96,165,250,0.15) !important;
+    border: 1px solid rgba(96,165,250,0.4) !important;
+    color: #60a5fa !important;
+    border-radius: 8px !important;
+}
+
+/* ── View page ── */
+.info-card {
+    background: linear-gradient(135deg, #1d2135, #181c2e) !important;
+    border: 1px solid rgba(44,51,86,0.9) !important;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+.info-card:hover {
+    border-color: rgba(96,165,250,0.25) !important;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.2) !important;
+}
+.info-label {
+    color: #4a5578 !important;
+    font-size: 0.65rem !important;
+    letter-spacing: 0.14em;
+}
+.info-value {
+    color: #e8eeff !important;
+    font-size: 0.95rem !important;
+}
+
+/* ── Tester badge ── */
+.tester-mini {
+    background: rgba(96,165,250,0.12) !important;
+    border: 1px solid rgba(96,165,250,0.25) !important;
+    color: #93c5fd !important;
+    font-size: 0.8rem;
+    padding: 3px 10px;
+    border-radius: 20px;
+}
+
+/* ── Model card actions ── */
+.model-card-actions {
+    border-top: 1px solid rgba(44,51,86,0.6) !important;
+    padding-top: 14px !important;
+}
+
+/* ── Inline-edit hint ── */
+.inline-edit {
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 5px;
+    transition: background 0.15s;
+}
+.inline-edit:hover {
+    background: rgba(96,165,250,0.1) !important;
+    color: #93c5fd !important;
+}
+
+/* ── Empty state ── */
+.empty-state {
+    background: rgba(22,25,40,0.5) !important;
+    border: 1px dashed rgba(44,51,86,0.8) !important;
+    border-radius: 16px;
+    padding: 48px 24px;
+}
+.empty-icon { font-size: 2.5rem; filter: opacity(0.5); }
+
+/* ── Danger button ── */
+.btn-danger {
+    background: rgba(248,113,113,0.12) !important;
+    border: 1px solid rgba(248,113,113,0.3) !important;
+    color: #f87171 !important;
+}
+.btn-danger:hover {
+    background: rgba(248,113,113,0.2) !important;
+    border-color: rgba(248,113,113,0.5) !important;
+}
+
+/* ── Panel open animation ── */
+@keyframes panelIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+
+/* ── Ячейка модели в таблице ── */
+.r-model {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.r-model-name {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 600;
+    font-size: 0.88rem;
+    line-height: 1;
+    color: var(--text);
+    text-decoration: none;
+}
+.model-card-name,
+.model-badge,
+.model-name-mono {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 600;
+    font-size: 0.9rem;
+    letter-spacing: 0;
+    line-height: 1;
 }

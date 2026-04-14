@@ -395,6 +395,55 @@
                 if (inp) { inp.focus(); inp.select(); }
             }
         });
+
+    // ── Scroll Reveal ──
+    const revealObserver = new IntersectionObserver((entries) => {
+        entries.forEach((entry, i) => {
+            if (entry.isIntersecting) {
+                setTimeout(() => entry.target.classList.add('visible'), i * 60);
+                revealObserver.unobserve(entry.target);
+            }
+        });
+    }, { threshold: 0.1 });
+    document.querySelectorAll('.brand-card, .model-row, .form-card, .table-wrap')
+        .forEach(el => { el.classList.add('reveal'); revealObserver.observe(el); });
+
+    // ── Ripple на кнопках ──
+    document.querySelectorAll('.btn').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            const rect = this.getBoundingClientRect();
+            const ripple = document.createElement('span');
+            const size = Math.max(rect.width, rect.height);
+            ripple.style.cssText = `
+                position:absolute; border-radius:50%;
+                width:${size}px; height:${size}px;
+                left:${e.clientX - rect.left - size/2}px;
+                top:${e.clientY - rect.top - size/2}px;
+                background:rgba(255,255,255,0.2);
+                transform:scale(0); animation:rippleAnim 0.5s ease-out;
+                pointer-events:none;
+            `;
+            this.appendChild(ripple);
+            setTimeout(() => ripple.remove(), 500);
+        });
+    });
+
+    // ── Плавный переход между страницами ──
+    document.querySelectorAll('a:not([target="_blank"]):not([href^="#"]):not([href^="mailto"])').forEach(a => {
+        a.addEventListener('click', function(e) {
+            const href = this.getAttribute('href');
+            if (!href || href.startsWith('javascript')) return;
+            e.preventDefault();
+            document.querySelector('main').style.cssText =
+                'opacity:0; transform:translateY(10px); transition:all 0.2s ease';
+            setTimeout(() => window.location.href = href, 200);
+        });
+    });
     </script>
+    <style>
+    @keyframes rippleAnim {
+        to { transform: scale(2.5); opacity: 0; }
+    }
+    </style>
 </body>
 </html>

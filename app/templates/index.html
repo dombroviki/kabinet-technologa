@@ -8,39 +8,55 @@
     </div>
 </div>
 
-<!-- Последние 10 добавленных моделей -->
-<details class="recent-block" id="recentBlock">
-    <summary class="recent-summary">
+<!-- Последние добавленные модели -->
+<div class="recent-block" id="recentBlock">
+    <div class="recent-summary" id="recentToggle">
+        <span class="recent-arrow" id="recentArrow">▶</span>
         <span>🕐 Последние добавленные модели</span>
         <span class="recent-count">{{ recent|length }}</span>
-    </summary>
-    <div class="table-wrap" style="margin-top:12px;">
-        <table>
-            <thead>
-                <tr>
-                    <th>Модель</th>
-                    <th>Бренд</th>
-                    <th>Лот</th>
-                    <th>Версия ПО</th>
-                    <th>Добавлено</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for m in recent %}
-                <tr>
-                    <td><strong>{{ m.model }}</strong></td>
-                    <td>{{ m.brand.name }}</td>
-                    <td><span class="lot-chip">{{ m.lot }}</span></td>
-                    <td style="font-family:monospace; font-size:0.82rem;">{{ m.software_version or '—' }}</td>
-                    <td class="date-text">{{ m.date_added.strftime('%d.%m.%Y %H:%M') }}</td>
-                    <td><a href="{{ url_for('view_model', id=m.id) }}" class="btn btn-secondary btn-sm">👁</a></td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
     </div>
-</details>
+    <div class="recent-body" id="recentBody">
+        <div class="recent-inner">
+            <table class="recent-table">
+                <thead>
+                    <tr>
+                        <th>Бренд</th>
+                        <th>Модель</th>
+                        <th>Лот</th>
+                        <th>Версия ПО</th>
+                        <th>Кто проверил</th>
+                        <th>Дата</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for m in recent %}
+                    <tr>
+                        <td class="r-brand">{{ m.brand.name }}</td>
+                        <td>
+                            <div class="r-model">
+                                <span class="r-model-name">{{ m.model }}</span>
+                                {% if m.is_flashable %}<span class="r-flash" title="Прошивается">⚡</span>{% endif %}
+                            </div>
+                        </td>
+                        <td><span class="lot-chip">{{ m.lot }}</span></td>
+                        <td class="r-sw">{{ m.software_version or '—' }}</td>
+                        <td class="r-tester">
+                            {% if m.tester_name %}
+                                <span class="tester-mini">{{ m.tester_name }}</span>
+                            {% else %}
+                                <span style="color:var(--muted);">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="date-text">{{ m.date_added | local_dt }}</td>
+                        <td><a href="{{ url_for('view_model', id=m.id) }}" class="btn btn-secondary btn-sm">👁</a></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
 
 <div class="brands-grid" style="margin-top:24px;">
     {% for brand in brands %}
@@ -51,7 +67,7 @@
                 <div class="brand-name">{{ brand.name }}</div>
                 <div class="brand-count">
                     <span class="count-dot"></span>
-                    {{ brand.tv_models|length }} моделей
+                    {{ counts.get(brand.id, 0) }} моделей
                 </div>
             </a>
         </div>
@@ -79,17 +95,13 @@
     font-weight: 600;
     font-size: 0.9rem;
     user-select: none;
-    list-style: none;
 }
-.recent-summary::-webkit-details-marker { display: none; }
-.recent-summary::before {
-    content: '▶';
-    font-size: 0.7rem;
+.recent-arrow {
+    font-size: 0.65rem;
     color: var(--muted);
-    transition: transform 0.2s;
-}
-details[open] .recent-summary::before {
-    transform: rotate(90deg);
+    display: inline-block;
+    transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1);
+    flex-shrink: 0;
 }
 .recent-count {
     background: var(--accent);
@@ -99,19 +111,90 @@ details[open] .recent-summary::before {
     font-size: 0.75rem;
     font-weight: 700;
 }
-.recent-block .table-wrap {
-    border-radius: 0;
-    border: none;
+
+/* Анимация через grid-template-rows — работает и на открытие и закрытие */
+.recent-body {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 0.35s cubic-bezier(0.22,1,0.36,1);
+    border-top: 0px solid var(--border);
+    transition: grid-template-rows 0.35s cubic-bezier(0.22,1,0.36,1),
+                border-top-width 0.35s;
+}
+.recent-body.open {
+    grid-template-rows: 1fr;
     border-top: 1px solid var(--border);
-    margin: 0 !important;
+}
+.recent-inner {
+    overflow: hidden;
+    min-height: 0;
+}
+
+.recent-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+.recent-table th {
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    padding: 10px 16px;
+    background: rgba(0,0,0,0.15);
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+}
+.recent-table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid rgba(44,51,86,0.4);
+    vertical-align: middle;
+}
+.recent-table tbody tr:last-child td { border-bottom: none; }
+.recent-table tbody tr:hover { background: rgba(96,165,250,0.05); }
+
+.r-brand { color: var(--text2); font-size: 0.85rem; }
+.r-model { display: flex; align-items: center; gap: 8px; line-height: 1; }
+.r-model-name { color: var(--text); font-family: 'Outfit', sans-serif; font-size: 0.88rem; font-weight: 600; line-height: 1; display: inline; }
+.r-sw { font-family: monospace; font-size: 0.8rem; color: #7ec8f5; }
+.r-flash {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(74,222,128,0.15);
+    border: 1px solid rgba(74,222,128,0.3);
+    border-radius: 6px;
+    padding: 1px 6px;
+    font-size: 0.7rem;
+    color: #4ade80;
 }
 </style>
 
 <script>
-// Запоминаем состояние раскрытия
-const key = 'recentOpen';
-const el = document.getElementById('recentBlock');
-if (localStorage.getItem(key) === '1') el.open = true;
-el.addEventListener('toggle', () => localStorage.setItem(key, el.open ? '1' : '0'));
+(function() {
+    var STORAGE_KEY = 'recentOpen_v2';
+    var body = document.getElementById('recentBody');
+    var arrow = document.getElementById('recentArrow');
+    var toggle = document.getElementById('recentToggle');
+
+    function setOpen(open) {
+        if (open) {
+            body.classList.add('open');
+            arrow.style.transform = 'rotate(90deg)';
+        } else {
+            body.classList.remove('open');
+            arrow.style.transform = 'rotate(0deg)';
+        }
+        try { localStorage.setItem(STORAGE_KEY, open ? '1' : '0'); } catch(e) {}
+    }
+
+    var saved = '0';
+    try { saved = localStorage.getItem(STORAGE_KEY) || '0'; } catch(e) {}
+    setOpen(saved === '1');
+
+    toggle.addEventListener('click', function() {
+        setOpen(!body.classList.contains('open'));
+    });
+})();
 </script>
 {% endblock %}

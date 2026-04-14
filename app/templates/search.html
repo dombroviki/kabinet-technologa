@@ -62,7 +62,7 @@
                             <span style="color:var(--muted);">—</span>
                         {% endif %}
                     </td>
-                    <td class="date-text">{{ model.date_added.strftime('%d.%m.%Y') }}</td>
+                    <td class="date-text">{{ model.date_added | local_dt }}</td>
                     <td>
                         <div class="actions-cell">
                             <a href="{{ url_for('view_model', id=model.id) }}" class="btn btn-secondary btn-sm" title="Просмотр">👁</a>

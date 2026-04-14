@@ -58,17 +58,29 @@ def editor_required(f):
 
 def init_app(app):
 
+    from datetime import timedelta
+
+    @app.template_filter('local_dt')
+    def local_dt(dt):
+        if not dt:
+            return '—'
+        return (dt + timedelta(hours=3)).strftime('%d.%m.%Y %H:%M')
+
     @app.route('/')
     @login_required
     def index():
+        from sqlalchemy import func
         from sqlalchemy.orm import joinedload
-        brands = Brand.query.options(
-            joinedload(Brand.tv_models)
-        ).order_by(Brand.name).all()
+        # Считаем количество моделей через агрегацию — не грузим все модели
+        counts = dict(
+            db.session.query(TVModel.brand_id, func.count(TVModel.id))
+            .group_by(TVModel.brand_id).all()
+        )
+        brands = Brand.query.order_by(Brand.name).all()
         recent = TVModel.query.options(
             joinedload(TVModel.brand),
         ).filter(TVModel.software_version.isnot(None)).order_by(TVModel.date_added.desc()).limit(10).all()
-        return render_template('index.html', brands=brands, recent=recent)
+        return render_template('index.html', brands=brands, counts=counts, recent=recent)
 
     @app.route('/recent-widget')
     @login_required

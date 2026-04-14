@@ -128,7 +128,7 @@
                 </div>
                 <div class="mcd-item">
                     <span class="mcd-label">Добавлено</span>
-                    <span class="mcd-value" style="color:var(--text2);">{{ model.date_added.strftime('%d.%m.%Y') }}</span>
+                    <span class="mcd-value" style="color:var(--text2);">{{ model.date_added | local_dt }}</span>
                 </div>
                 {% if model.specifications %}
                 <div class="mcd-item mcd-full">
