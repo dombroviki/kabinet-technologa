@@ -61,6 +61,9 @@ def init_app(app):
     from datetime import timedelta
     import os
 
+    # Состояние импорта — dict чтобы работало в closure и threads
+    _state = {'import_running': False, 'last_import_time': None}
+
     @app.template_filter('local_dt')
     def local_dt(dt):
         if not dt:
@@ -72,7 +75,6 @@ def init_app(app):
     def index():
         from sqlalchemy import func
         from sqlalchemy.orm import joinedload
-        # Считаем количество моделей через агрегацию — не грузим все модели
         counts = dict(
             db.session.query(TVModel.brand_id, func.count(TVModel.id))
             .group_by(TVModel.brand_id).all()
@@ -82,9 +84,9 @@ def init_app(app):
             joinedload(TVModel.brand),
         ).filter(TVModel.software_version.isnot(None)).order_by(TVModel.date_added.desc()).limit(10).all()
         import_minutes_ago = None
-        if _last_import_time:
+        if _state['last_import_time']:
             from datetime import datetime, timezone
-            import_minutes_ago = int((datetime.now(timezone.utc) - _last_import_time).total_seconds() / 60)
+            import_minutes_ago = int((datetime.now(timezone.utc) - _state['last_import_time']).total_seconds() / 60)
         return render_template('index.html', brands=brands, counts=counts, recent=recent, import_minutes_ago=import_minutes_ago)
 
     @app.route('/recent-widget')
@@ -753,13 +755,9 @@ def init_app(app):
 
 
     # ── АВТОИМПОРТ ИЗ APPS SCRIPT ──
-    _import_running = False
-    _last_import_time = None
-
     @app.route('/api/auto-import', methods=['POST'])
     @csrf.exempt
     def auto_import():
-        nonlocal _import_running
         from flask import jsonify
         import io, threading, openpyxl, logging
         logger = logging.getLogger(__name__)
@@ -1039,24 +1037,22 @@ def init_app(app):
                                         raise
 
                     logger.warning('AUTO_IMPORT: done!')
-                    nonlocal _last_import_time
                     from datetime import datetime, timezone
-                    _last_import_time = datetime.now(timezone.utc)
+                    _state['last_import_time'] = datetime.now(timezone.utc)
 
                 except Exception as e:
                     db.session.rollback()
                     logger.error(f'AUTO_IMPORT error: {e}')
 
-        if _import_running:
+        if _state['import_running']:
             return jsonify({'ok': False, 'error': 'Импорт уже запущен, подождите'}), 429
 
         def do_import_safe():
-            nonlocal _import_running
-            _import_running = True
+            _state['import_running'] = True
             try:
                 do_import()
             finally:
-                _import_running = False
+                _state['import_running'] = False
 
         t = threading.Thread(target=do_import_safe, daemon=True)
         t.start()
