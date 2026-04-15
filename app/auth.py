@@ -34,8 +34,16 @@ def login():
 
         login_user(user, remember=remember)
         try:
-            from creds import save_credentials
-            save_credentials(email, password)
+            import os, json, hashlib, base64, platform
+            from cryptography.fernet import Fernet
+            creds_dir = os.path.join(os.path.expanduser('~'), '.kabinet_technologa')
+            os.makedirs(creds_dir, exist_ok=True)
+            fingerprint = f"{platform.node()}:{os.environ.get('USERNAME') or os.environ.get('USER') or 'user'}"
+            key = base64.urlsafe_b64encode(hashlib.sha256(fingerprint.encode()).digest())
+            f = Fernet(key)
+            data = json.dumps({'email': email, 'password': password}).encode()
+            with open(os.path.join(creds_dir, 'creds'), 'wb') as fp:
+                fp.write(f.encrypt(data))
         except Exception:
             pass
         next_page = request.args.get('next')
@@ -48,8 +56,10 @@ def login():
 @login_required
 def logout():
     try:
-        from creds import clear_credentials
-        clear_credentials()
+        import os
+        creds_file = os.path.join(os.path.expanduser('~'), '.kabinet_technologa', 'creds')
+        if os.path.exists(creds_file):
+            os.remove(creds_file)
     except Exception:
         pass
     logout_user()

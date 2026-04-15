@@ -1,6 +1,12 @@
 import os
+import sys
 from dotenv import load_dotenv
 load_dotenv()
+
+# Добавляем корень проекта в путь чтобы creds.py был доступен
+_root = os.path.dirname(os.path.abspath(__file__))
+if _root not in sys.path:
+    sys.path.insert(0, _root)
 
 import threading
 import time

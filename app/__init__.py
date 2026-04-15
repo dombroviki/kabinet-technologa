@@ -64,6 +64,12 @@ def create_app(config_class=Config):
             flash('Ваш аккаунт деактивирован', 'error')
             return redirect(url_for('auth.login'))
 
+    @app.teardown_request
+    def teardown_request(exception):
+        if exception:
+            db.session.rollback()
+        db.session.remove()
+
     # Создаём таблицы если их нет
     with app.app_context():
         db.create_all()

@@ -62,7 +62,26 @@ def init_app(app):
     import os
 
     # Состояние импорта — dict чтобы работало в closure и threads
-    _state = {'import_running': False, 'last_import_time': None}
+    import os as _os
+    _IMPORT_TS_FILE = _os.path.join(_os.path.expanduser('~'), '.kabinet_technologa', 'last_import')
+
+    def _read_last_import():
+        try:
+            with open(_IMPORT_TS_FILE) as f:
+                from datetime import datetime, timezone
+                return datetime.fromtimestamp(float(f.read().strip()), tz=timezone.utc)
+        except Exception:
+            return None
+
+    def _write_last_import(dt):
+        try:
+            _os.makedirs(_os.path.dirname(_IMPORT_TS_FILE), exist_ok=True)
+            with open(_IMPORT_TS_FILE, 'w') as f:
+                f.write(str(dt.timestamp()))
+        except Exception:
+            pass
+
+    _state = {'import_running': False, 'last_import_time': _read_last_import()}
 
     @app.template_filter('local_dt')
     def local_dt(dt):
@@ -463,25 +482,29 @@ def init_app(app):
     def desktop_autologin():
         from flask_login import login_user, current_user
         from flask import redirect, url_for
+        import logging
+        logger = logging.getLogger(__name__)
         if current_user.is_authenticated:
             return redirect(url_for('index'))
         try:
-            import sys, os
-            # Ищем creds.py рядом с exe или в корне проекта
-            base = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
-            root = os.path.dirname(base)
-            if root not in sys.path:
-                sys.path.insert(0, root)
-            from creds import load_credentials
-            creds = load_credentials()
-            if creds:
-                email, password = creds
-                user = User.query.filter_by(email=email.lower()).first()
-                if user and user.check_password(password) and user.is_active_user:
+            import os, json, hashlib, base64, platform
+            from cryptography.fernet import Fernet
+            creds_file = os.path.join(os.path.expanduser('~'), '.kabinet_technologa', 'creds')
+            logger.warning(f'AUTOLOGIN: creds_file={creds_file}, exists={os.path.exists(creds_file)}')
+            if os.path.exists(creds_file):
+                fingerprint = f"{platform.node()}:{os.environ.get('USERNAME') or os.environ.get('USER') or 'user'}"
+                key = base64.urlsafe_b64encode(hashlib.sha256(fingerprint.encode()).digest())
+                f = Fernet(key)
+                with open(creds_file, 'rb') as fp:
+                    data = json.loads(f.decrypt(fp.read()).decode())
+                user = User.query.filter_by(email=data['email'].lower()).first()
+                logger.warning(f'AUTOLOGIN: user={user}, email={data["email"]}')
+                if user and user.check_password(data['password']) and user.is_active_user:
                     login_user(user, remember=True)
+                    logger.warning('AUTOLOGIN: success')
                     return redirect(url_for('index'))
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f'AUTOLOGIN error: {e}')
         return redirect(url_for('auth.login'))
 
     @app.route('/api/import-status')
@@ -1074,6 +1097,7 @@ def init_app(app):
                     logger.warning('AUTO_IMPORT: done!')
                     from datetime import datetime, timezone
                     _state['last_import_time'] = datetime.now(timezone.utc)
+                    _write_last_import(_state['last_import_time'])
 
                 except Exception as e:
                     db.session.rollback()
