@@ -36,16 +36,19 @@ def login():
         try:
             import os, json, hashlib, base64, platform
             from cryptography.fernet import Fernet
-            creds_dir = os.path.join(os.path.expanduser('~'), '.kabinet_technologa')
+            home = os.environ.get('APPDATA') or os.environ.get('USERPROFILE') or os.path.expanduser('~')
+            creds_dir = os.path.join(home, 'KabinetTechnologa')
             os.makedirs(creds_dir, exist_ok=True)
             fingerprint = f"{platform.node()}:{os.environ.get('USERNAME') or os.environ.get('USER') or 'user'}"
             key = base64.urlsafe_b64encode(hashlib.sha256(fingerprint.encode()).digest())
             f = Fernet(key)
             data = json.dumps({'email': email, 'password': password}).encode()
-            with open(os.path.join(creds_dir, 'creds'), 'wb') as fp:
+            creds_path = os.path.join(creds_dir, 'creds')
+            with open(creds_path, 'wb') as fp:
                 fp.write(f.encrypt(data))
-        except Exception:
-            pass
+            print(f'CREDS SAVED: {creds_path}')
+        except Exception as e:
+            print(f'CREDS ERROR: {e}')
         next_page = request.args.get('next')
         return redirect(next_page or url_for('index'))
 
@@ -57,7 +60,7 @@ def login():
 def logout():
     try:
         import os
-        creds_file = os.path.join(os.path.expanduser('~'), '.kabinet_technologa', 'creds')
+        creds_file = os.path.join(os.environ.get('APPDATA') or os.path.expanduser('~'), 'KabinetTechnologa', 'creds')
         if os.path.exists(creds_file):
             os.remove(creds_file)
     except Exception:

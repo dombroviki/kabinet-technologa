@@ -195,6 +195,10 @@ def show_splash():
     return root
 
 if __name__ == '__main__':
+    import platform
+    print(f"HOME: {os.path.expanduser('~')}")
+    print(f"USERNAME: {os.environ.get('USERNAME')}")
+    print(f"NODE: {platform.node()}")
     t = threading.Thread(target=start_flask, daemon=True)
     t.start()
 

@@ -489,7 +489,8 @@ def init_app(app):
         try:
             import os, json, hashlib, base64, platform
             from cryptography.fernet import Fernet
-            creds_file = os.path.join(os.path.expanduser('~'), '.kabinet_technologa', 'creds')
+            home = os.environ.get('APPDATA') or os.environ.get('USERPROFILE') or os.path.expanduser('~')
+            creds_file = os.path.join(home, 'KabinetTechnologa', 'creds')
             logger.warning(f'AUTOLOGIN: creds_file={creds_file}, exists={os.path.exists(creds_file)}')
             if os.path.exists(creds_file):
                 fingerprint = f"{platform.node()}:{os.environ.get('USERNAME') or os.environ.get('USER') or 'user'}"
