@@ -215,5 +215,5 @@ if __name__ == '__main__':
         height=900,
         min_size=(800, 600),
     )
-    webview.start()
+    webview.start(storage_path=os.path.join(os.path.expanduser('~'), '.kabinet_technologa'))
 

@@ -59,6 +59,7 @@ def editor_required(f):
 def init_app(app):
 
     from datetime import timedelta
+    import os
 
     @app.template_filter('local_dt')
     def local_dt(dt):
@@ -80,7 +81,11 @@ def init_app(app):
         recent = TVModel.query.options(
             joinedload(TVModel.brand),
         ).filter(TVModel.software_version.isnot(None)).order_by(TVModel.date_added.desc()).limit(10).all()
-        return render_template('index.html', brands=brands, counts=counts, recent=recent)
+        import_minutes_ago = None
+        if _last_import_time:
+            from datetime import datetime, timezone
+            import_minutes_ago = int((datetime.now(timezone.utc) - _last_import_time).total_seconds() / 60)
+        return render_template('index.html', brands=brands, counts=counts, recent=recent, import_minutes_ago=import_minutes_ago)
 
     @app.route('/recent-widget')
     @login_required
@@ -749,6 +754,7 @@ def init_app(app):
 
     # ── АВТОИМПОРТ ИЗ APPS SCRIPT ──
     _import_running = False
+    _last_import_time = None
 
     @app.route('/api/auto-import', methods=['POST'])
     @csrf.exempt
@@ -1033,6 +1039,9 @@ def init_app(app):
                                         raise
 
                     logger.warning('AUTO_IMPORT: done!')
+                    nonlocal _last_import_time
+                    from datetime import datetime, timezone
+                    _last_import_time = datetime.now(timezone.utc)
 
                 except Exception as e:
                     db.session.rollback()

@@ -14,6 +14,14 @@
         <span class="recent-arrow" id="recentArrow">▶</span>
         <span>🕐 Последние добавленные модели</span>
         <span class="recent-count">{{ recent|length }}</span>
+        {% if import_minutes_ago is not none %}
+        <span class="recent-updated">
+            {% if import_minutes_ago < 1 %}Синхронизировано только что
+            {% elif import_minutes_ago < 60 %}Синхронизировано {{ import_minutes_ago }} {{ 'минуту' if import_minutes_ago == 1 else 'минуты' if import_minutes_ago < 5 else 'минут' }} назад
+            {% else %}{% set h = (import_minutes_ago // 60)|int %}Синхронизировано {{ h }} {{ 'час' if h == 1 else 'часа' if h < 5 else 'часов' }} назад
+            {% endif %}
+        </span>
+        {% endif %}
     </div>
     <div class="recent-body" id="recentBody">
         <div class="recent-inner">
@@ -112,6 +120,13 @@
     padding: 2px 8px;
     font-size: 0.75rem;
     font-weight: 700;
+}
+.recent-updated {
+    margin-left: auto;
+    font-size: 0.72rem;
+    color: var(--muted);
+    font-weight: 400;
+    white-space: nowrap;
 }
 
 /* Анимация через grid-template-rows — работает и на открытие и закрытие */

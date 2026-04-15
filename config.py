@@ -12,6 +12,17 @@ class Config:
         SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or 'sqlite:///tv_models.db'
 
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    REMEMBER_COOKIE_DURATION = 60 * 60 * 24 * 30  # 30 дней
+    REMEMBER_COOKIE_SECURE = False
+    REMEMBER_COOKIE_HTTPONLY = True
+
+    # Серверные сессии для десктопа (куки webview не сохраняются)
+    if _IS_DESKTOP:
+        SESSION_TYPE = 'filesystem'
+        SESSION_FILE_DIR = os.path.join(os.path.expanduser('~'), '.kabinet_technologa', 'sessions')
+        SESSION_PERMANENT = True
+        PERMANENT_SESSION_LIFETIME = 60 * 60 * 24 * 30  # 30 дней
+        SESSION_FILE_THRESHOLD = 100
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     UPLOAD_FOLDER = os.path.join(BASE_DIR, 'app', 'static', 'uploads')
     MAX_CONTENT_LENGTH = 2 * 1024 * 1024 * 1024

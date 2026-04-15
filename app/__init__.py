@@ -3,6 +3,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
 from flask_wtf.csrf import CSRFProtect
 from config import Config
+import os
 
 db = SQLAlchemy()
 login_manager = LoginManager()
@@ -11,6 +12,12 @@ csrf = CSRFProtect()
 def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
+
+    # Серверные сессии только для десктопа
+    if app.config.get('SESSION_TYPE') == 'filesystem':
+        os.makedirs(app.config['SESSION_FILE_DIR'], exist_ok=True)
+        from flask_session import Session
+        Session(app)
 
     db.init_app(app)
     csrf.init_app(app)
