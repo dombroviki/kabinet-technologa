@@ -31,7 +31,9 @@
                 </thead>
                 <tbody>
                     {% for m in recent %}
-                    <tr>
+                    <tr class="ctx-row"
+                        data-view-url="{{ url_for('view_model', id=m.id) }}"
+                        {% if current_user.is_editor %}data-edit-url="{{ url_for('edit_model', id=m.id) }}"{% endif %}>
                         <td class="r-brand">{{ m.brand.name }}</td>
                         <td>
                             <div class="r-model">

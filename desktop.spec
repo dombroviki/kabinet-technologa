@@ -9,6 +9,7 @@ added_files = [
     ('app/templates', 'app/templates'),
     ('app/static', 'app/static'),
     ('config.py', '.'),
+    ('version.py', '.'),
 ]
 
 a = Analysis(
@@ -32,6 +33,9 @@ a = Analysis(
         'google.auth',
         'requests',
         'email_validator',
+        'tkinter',
+        'tkinter.font',
+        '_tkinter',
     ],
     hookspath=[],
     hooksconfig={},
@@ -56,7 +60,7 @@ exe = EXE(
     strip=False,
     upx=True,
     console=False,  # без консольного окна
-    icon=None,      # можно добавить .ico файл
+    icon='icon.ico',
 )
 
 coll = COLLECT(

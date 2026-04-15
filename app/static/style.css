@@ -69,6 +69,7 @@ nav { display: flex; justify-content: space-between; align-items: center; height
     font-weight: 800; font-size: 1.1rem; letter-spacing: -0.03em;
     display: flex; align-items: center; gap: 10px;
     text-decoration: none; color: inherit;
+    flex-shrink: 0;
 }
 
 .logo-icon {
@@ -83,7 +84,7 @@ nav { display: flex; justify-content: space-between; align-items: center; height
     -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
 }
 
-.nav-links { display: flex; align-items: center; gap: 6px; }
+.nav-links { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
 
 .nav-home {
     color: var(--text2); text-decoration: none; padding: 8px 14px;
@@ -533,7 +534,7 @@ textarea { resize: vertical; min-height: 110px; line-height: 1.6; }
 .detail-card:hover { border-color: rgba(91,141,238,0.35); }
 .detail-card.full-width { grid-column: 1 / -1; }
 .detail-label { font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.13em; color: var(--muted); margin-bottom: 7px; }
-.detail-value { font-size: 0.97rem; color: var(--text); line-height: 1.5; }
+.detail-value { font-size: 0.97rem; color: var(--text); line-height: 1.5; user-select: text; -webkit-user-select: text; }
 
 .tester-badge { display: inline-flex; align-items: center; gap: 6px; background: rgba(139,110,245,0.12); color: #b49dff; border: 1px solid rgba(139,110,245,0.25); border-radius: 20px; padding: 4px 12px; font-size: 0.85rem; font-weight: 500; }
 .tester-badge::before { content: '👤'; font-size: 0.8rem; }
@@ -594,6 +595,10 @@ footer { border-top: 1px solid var(--border); padding: 22px 0; text-align: cente
     .actions-cell { flex-wrap: wrap; }
     .form-row { grid-template-columns: 1fr; gap: 0; }
     .photo-gallery { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); }
+}
+
+@media (max-width: 900px) {
+    .logo-text { display: none; }
 }
 
 
@@ -731,6 +736,7 @@ footer { border-top: 1px solid var(--border); padding: 22px 0; text-align: cente
 /* ── ГЛОБАЛЬНЫЙ ПОИСК В ШАПКЕ ── */
 .global-search-form {
     flex: 1;
+    min-width: 160px;
     max-width: 380px;
     margin: 0 16px;
 }
@@ -746,6 +752,7 @@ footer { border-top: 1px solid var(--border); padding: 22px 0; text-align: cente
     padding: 0px 14px;
     transition: border-color 0.2s, background 0.2s;
     cursor: text;
+    min-width: 0;
 }
 
 .global-search-wrap:focus-within {

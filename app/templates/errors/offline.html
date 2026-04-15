@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block content %}
+<div style="display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:50vh; text-align:center; gap:16px;">
+    <div style="font-size:4rem; line-height:1;">🔌</div>
+    <h1 style="font-size:3rem; font-weight:800; color:var(--danger); margin:0;">503</h1>
+    <p style="font-size:1.1rem; color:var(--text2); margin:0;">База данных недоступна</p>
+    <p style="font-size:0.88rem; color:var(--muted); max-width:380px; margin:0;">
+        Нет соединения с Neon PostgreSQL. Проверьте подключение к интернету и попробуйте снова.
+    </p>
+    <div style="display:flex; gap:10px; align-items:center;">
+        <button onclick="location.reload()" class="btn btn-primary" style="width:148px; height:40px; box-sizing:border-box;">↻ Повторить</button>
+        <a href="{{ url_for('index') }}" class="btn btn-secondary" style="width:148px; height:40px; box-sizing:border-box;">🏠 На главную</a>
+    </div>
+</div>
+{% endblock %}

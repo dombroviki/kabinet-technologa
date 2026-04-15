@@ -81,7 +81,10 @@
     <div class="model-card" id="card-{{ model.id }}">
 
         <!-- Основная строка — кликабельна -->
-        <div class="model-card-row" data-id="{{ model.id }}" onclick="toggleCard(this.dataset.id)">
+        <div class="model-card-row" data-id="{{ model.id }}"
+             data-view-url="{{ url_for('view_model', id=model.id) }}"
+             {% if current_user.is_editor %}data-edit-url="{{ url_for('edit_model', id=model.id) }}"{% endif %}
+             onclick="toggleCard(this.dataset.id)">
             <div class="model-card-main">
                 <span class="model-dot"></span>
                 <span class="model-card-name">{{ model.model }}</span>

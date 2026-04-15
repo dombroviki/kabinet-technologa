@@ -84,4 +84,11 @@ def create_app(config_class=Config):
         from flask import render_template
         return render_template('errors/500.html'), 500
 
+    from sqlalchemy.exc import OperationalError, DatabaseError
+    @app.errorhandler(OperationalError)
+    @app.errorhandler(DatabaseError)
+    def db_offline(e):
+        from flask import render_template
+        return render_template('errors/offline.html'), 503
+
     return app
