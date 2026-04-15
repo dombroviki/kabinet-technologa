@@ -15,12 +15,14 @@
         <span>🕐 Последние добавленные модели</span>
         <span class="recent-count">{{ recent|length }}</span>
         {% if import_minutes_ago is not none %}
-        <span class="recent-updated">
+        <span class="recent-updated" id="importStatus">
             {% if import_minutes_ago < 1 %}Синхронизировано только что
             {% elif import_minutes_ago < 60 %}Синхронизировано {{ import_minutes_ago }} {{ 'минуту' if import_minutes_ago == 1 else 'минуты' if import_minutes_ago < 5 else 'минут' }} назад
             {% else %}{% set h = (import_minutes_ago // 60)|int %}Синхронизировано {{ h }} {{ 'час' if h == 1 else 'часа' if h < 5 else 'часов' }} назад
             {% endif %}
         </span>
+        {% else %}
+        <span class="recent-updated" id="importStatus"></span>
         {% endif %}
     </div>
     <div class="recent-body" id="recentBody">
@@ -212,6 +214,33 @@
     toggle.addEventListener('click', function() {
         setOpen(!body.classList.contains('open'));
     });
+
+    // Поллинг статуса синхронизации
+    (function() {
+        var el = document.getElementById('importStatus');
+        if (!el) return;
+
+        function minsText(m) {
+            if (m < 1) return 'Синхронизировано только что';
+            if (m < 60) {
+                return 'Синхронизировано ' + m + ' ' + (m === 1 ? 'минуту' : m < 5 ? 'минуты' : 'минут') + ' назад';
+            }
+            var h = Math.floor(m / 60);
+            return 'Синхронизировано ' + h + ' ' + (h === 1 ? 'час' : h < 5 ? 'часа' : 'часов') + ' назад';
+        }
+
+        function poll() {
+            fetch('/api/import-status')
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.ok) el.textContent = minsText(data.minutes_ago);
+                })
+                .catch(function() {});
+        }
+
+        poll();
+        setInterval(poll, 30000);
+    })();
 })();
 </script>
 {% endblock %}

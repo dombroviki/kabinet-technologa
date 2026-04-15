@@ -459,6 +459,16 @@ def init_app(app):
         flash('Прошивка удалена', 'success')
         return redirect(url_for('view_model', id=model_id))
 
+    @app.route('/api/import-status')
+    @login_required
+    def import_status():
+        from flask import jsonify
+        from datetime import datetime, timezone
+        if _state['last_import_time']:
+            minutes = int((datetime.now(timezone.utc) - _state['last_import_time']).total_seconds() / 60)
+            return jsonify({'ok': True, 'minutes_ago': minutes})
+        return jsonify({'ok': False})
+
     @app.route('/api/suggest')
     @login_required
     def suggest():
