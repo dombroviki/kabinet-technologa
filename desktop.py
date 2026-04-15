@@ -210,7 +210,7 @@ if __name__ == '__main__':
 
     webview.create_window(
         f'Кабинет технолога v{__version__}',
-        'http://127.0.0.1:5000',
+        'http://127.0.0.1:5000/desktop-autologin',
         width=1400,
         height=900,
         min_size=(800, 600),

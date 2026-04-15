@@ -33,6 +33,11 @@ def login():
             return render_template('auth/login.html')
 
         login_user(user, remember=remember)
+        try:
+            from creds import save_credentials
+            save_credentials(email, password)
+        except Exception:
+            pass
         next_page = request.args.get('next')
         return redirect(next_page or url_for('index'))
 
@@ -42,6 +47,11 @@ def login():
 @auth_bp.route('/logout')
 @login_required
 def logout():
+    try:
+        from creds import clear_credentials
+        clear_credentials()
+    except Exception:
+        pass
     logout_user()
     return redirect(url_for('auth.login'))
 

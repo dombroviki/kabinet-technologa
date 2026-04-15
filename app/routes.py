@@ -459,6 +459,31 @@ def init_app(app):
         flash('Прошивка удалена', 'success')
         return redirect(url_for('view_model', id=model_id))
 
+    @app.route('/desktop-autologin')
+    def desktop_autologin():
+        from flask_login import login_user, current_user
+        from flask import redirect, url_for
+        if current_user.is_authenticated:
+            return redirect(url_for('index'))
+        try:
+            import sys, os
+            # Ищем creds.py рядом с exe или в корне проекта
+            base = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
+            root = os.path.dirname(base)
+            if root not in sys.path:
+                sys.path.insert(0, root)
+            from creds import load_credentials
+            creds = load_credentials()
+            if creds:
+                email, password = creds
+                user = User.query.filter_by(email=email.lower()).first()
+                if user and user.check_password(password) and user.is_active_user:
+                    login_user(user, remember=True)
+                    return redirect(url_for('index'))
+        except Exception:
+            pass
+        return redirect(url_for('auth.login'))
+
     @app.route('/api/import-status')
     @login_required
     def import_status():

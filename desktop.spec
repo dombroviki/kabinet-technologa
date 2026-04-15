@@ -10,6 +10,7 @@ added_files = [
     ('app/static', 'app/static'),
     ('config.py', '.'),
     ('version.py', '.'),
+    ('creds.py', '.'),
 ]
 
 a = Analysis(
