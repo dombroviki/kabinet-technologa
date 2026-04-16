@@ -148,3 +148,9 @@ class ModelComment(db.Model):
                                backref=db.backref('comments', lazy=True,
                                                   cascade='all, delete-orphan',
                                                   order_by='ModelComment.timestamp'))
+
+
+class AppSetting(db.Model):
+    """Системные настройки приложения — key/value"""
+    key   = db.Column(db.String(100), primary_key=True)
+    value = db.Column(db.Text, nullable=True)

@@ -61,28 +61,32 @@ def init_app(app):
     from datetime import timedelta
     import os
 
-    # Состояние импорта — dict чтобы работало в closure и threads
-    import os as _os
-    _IMPORT_TS_FILE = _os.path.join(_os.path.expanduser('~'), '.kabinet_technologa', 'last_import')
+    # Состояние импорта
+    _state = {'import_running': False}
 
-    def _read_last_import():
+    def _get_last_import():
         try:
-            with open(_IMPORT_TS_FILE) as f:
-                from datetime import datetime, timezone
-                return datetime.fromtimestamp(float(f.read().strip()), tz=timezone.utc)
+            from .models import AppSetting
+            from datetime import datetime, timezone
+            s = AppSetting.query.get('last_import_time')
+            if s and s.value:
+                return datetime.fromtimestamp(float(s.value), tz=timezone.utc)
         except Exception:
-            return None
+            pass
+        return None
 
-    def _write_last_import(dt):
+    def _set_last_import(dt):
         try:
-            _os.makedirs(_os.path.dirname(_IMPORT_TS_FILE), exist_ok=True)
-            with open(_IMPORT_TS_FILE, 'w') as f:
-                f.write(str(dt.timestamp()))
-        except Exception as e:
-            import logging
-            logging.getLogger(__name__).warning(f'_write_last_import error: {e}')
-
-    _state = {'import_running': False, 'last_import_time': _read_last_import()}
+            from .models import AppSetting
+            s = AppSetting.query.get('last_import_time')
+            if s:
+                s.value = str(dt.timestamp())
+            else:
+                s = AppSetting(key='last_import_time', value=str(dt.timestamp()))
+                db.session.add(s)
+            db.session.commit()
+        except Exception:
+            pass
 
     @app.template_filter('local_dt')
     def local_dt(dt):
@@ -104,9 +108,10 @@ def init_app(app):
             joinedload(TVModel.brand),
         ).filter(TVModel.software_version.isnot(None)).order_by(TVModel.date_added.desc()).limit(10).all()
         import_minutes_ago = None
-        if _state['last_import_time']:
+        last_import = _get_last_import()
+        if last_import:
             from datetime import datetime, timezone
-            import_minutes_ago = int((datetime.now(timezone.utc) - _state['last_import_time']).total_seconds() / 60)
+            import_minutes_ago = int((datetime.now(timezone.utc) - last_import).total_seconds() / 60)
         return render_template('index.html', brands=brands, counts=counts, recent=recent, import_minutes_ago=import_minutes_ago)
 
     @app.route('/recent-widget')
@@ -514,8 +519,9 @@ def init_app(app):
     def import_status():
         from flask import jsonify
         from datetime import datetime, timezone
-        if _state['last_import_time']:
-            minutes = int((datetime.now(timezone.utc) - _state['last_import_time']).total_seconds() / 60)
+        last_import = _get_last_import()
+        if last_import:
+            minutes = int((datetime.now(timezone.utc) - last_import).total_seconds() / 60)
             return jsonify({'ok': True, 'minutes_ago': minutes})
         return jsonify({'ok': False})
 
@@ -1098,8 +1104,7 @@ def init_app(app):
 
                     logger.warning('AUTO_IMPORT: done!')
                     from datetime import datetime, timezone
-                    _state['last_import_time'] = datetime.now(timezone.utc)
-                    _write_last_import(_state['last_import_time'])
+                    _set_last_import(datetime.now(timezone.utc))
 
                 except Exception as e:
                     db.session.rollback()
