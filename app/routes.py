@@ -78,8 +78,9 @@ def init_app(app):
             _os.makedirs(_os.path.dirname(_IMPORT_TS_FILE), exist_ok=True)
             with open(_IMPORT_TS_FILE, 'w') as f:
                 f.write(str(dt.timestamp()))
-        except Exception:
-            pass
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f'_write_last_import error: {e}')
 
     _state = {'import_running': False, 'last_import_time': _read_last_import()}
 

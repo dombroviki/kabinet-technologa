@@ -59,6 +59,11 @@ def create_app(config_class=Config):
     def check_user_active():
         from flask_login import current_user, logout_user
         from flask import redirect, url_for, flash
+        # Сбрасываем грязную сессию перед каждым запросом
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
         if current_user.is_authenticated and not current_user.is_active_user:
             logout_user()
             flash('Ваш аккаунт деактивирован', 'error')
