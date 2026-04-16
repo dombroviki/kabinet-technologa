@@ -79,7 +79,7 @@
     </div>
     <div class="detail-card">
         <div class="detail-label">Дата добавления</div>
-        <div class="detail-value" style="color:var(--text2);">{{ model.date_added.strftime('%d.%m.%Y %H:%M') }}</div>
+        <div class="detail-value" style="color:var(--text2);">{{ model.date_added | local_dt }}</div>
     </div>
 
     {% if model.specifications %}

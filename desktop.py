@@ -215,8 +215,15 @@ if __name__ == '__main__':
     threading.Thread(target=wait_and_close, daemon=True).start()
     splash.mainloop()
 
-    # Проверка обновлений в фоне
-    threading.Thread(target=run_update_check, daemon=True).start()
+    # Проверка обновлений до запуска webview (tkinter требует главный тред)
+    result = check_for_updates()
+    if result:
+        latest, download_url = result
+        try:
+            if version_tuple(latest) > version_tuple(__version__):
+                show_update_dialog(latest, download_url)
+        except Exception:
+            pass
 
     webview.create_window(
         f'Кабинет технолога v{__version__}',
