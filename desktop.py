@@ -159,6 +159,94 @@ def run_update_check():
     except Exception:
         pass
 
+
+# ── АВТОЗАПУСК ──────────────────────────────────────────────────────────────
+
+AUTOSTART_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
+AUTOSTART_NAME = "КабинетТехнолога"
+
+def is_autostart_enabled():
+    try:
+        import winreg
+        key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, AUTOSTART_KEY, 0, winreg.KEY_READ)
+        winreg.QueryValueEx(key, AUTOSTART_NAME)
+        winreg.CloseKey(key)
+        return True
+    except Exception:
+        return False
+
+def set_autostart(enable: bool):
+    try:
+        import winreg
+        key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, AUTOSTART_KEY, 0, winreg.KEY_SET_VALUE)
+        if enable:
+            exe_path = sys.executable if getattr(sys, 'frozen', False) else os.path.abspath(__file__)
+            winreg.SetValueEx(key, AUTOSTART_NAME, 0, winreg.REG_SZ, f'"{exe_path}"')
+        else:
+            try:
+                winreg.DeleteValue(key, AUTOSTART_NAME)
+            except FileNotFoundError:
+                pass
+        winreg.CloseKey(key)
+    except Exception as e:
+        print(f"Autostart error: {e}")
+
+
+# ── СИСТЕМНЫЙ ТРЕЙ ───────────────────────────────────────────────────────────
+
+_tray_icon = None
+_webview_window = None
+
+def _make_tray_image():
+    try:
+        from PIL import Image, ImageDraw
+        img = Image.new('RGBA', (64, 64), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
+        draw.rounded_rectangle([4, 4, 60, 60], radius=14, fill=(91, 141, 238, 255))
+        return img
+    except Exception:
+        from PIL import Image
+        return Image.new('RGB', (64, 64), color=(91, 141, 238))
+
+def _show_window():
+    if _webview_window:
+        try:
+            _webview_window.show()
+        except Exception:
+            pass
+
+def _toggle_autostart_menu(icon, item):
+    set_autostart(not is_autostart_enabled())
+
+def _exit_app(icon, item):
+    icon.stop()
+    os._exit(0)
+
+def start_tray():
+    global _tray_icon
+    try:
+        import pystray
+        from pystray import MenuItem as Item, Menu
+
+        menu = Menu(
+            Item('Открыть', lambda icon, item: _show_window(), default=True),
+            Menu.SEPARATOR,
+            Item('Автозапуск при старте Windows',
+                 _toggle_autostart_menu,
+                 checked=lambda item: is_autostart_enabled()),
+            Menu.SEPARATOR,
+            Item('Выход', _exit_app),
+        )
+        _tray_icon = pystray.Icon(
+            AUTOSTART_NAME,
+            _make_tray_image(),
+            f'Кабинет технолога v{__version__}',
+            menu,
+        )
+        _tray_icon.run()
+    except Exception as e:
+        print(f"Tray error: {e}")
+
 def show_splash():
     root = tk.Tk()
     root.overrideredirect(True)
@@ -225,12 +313,25 @@ if __name__ == '__main__':
         except Exception:
             pass
 
-    webview.create_window(
+    webview_window = webview.create_window(
         f'Кабинет технолога v{__version__}',
         'http://127.0.0.1:5000/desktop-autologin',
         width=1400,
         height=900,
         min_size=(800, 600),
     )
+
+    globals()['_webview_window'] = webview_window
+
+    def on_closing():
+        try:
+            webview_window.hide()
+        except Exception:
+            pass
+        return False
+
+    webview_window.events.closing += on_closing
+    threading.Thread(target=start_tray, daemon=True).start()
+
     webview.start(storage_path=os.path.join(os.path.expanduser('~'), '.kabinet_technologa'))
 
