@@ -4,20 +4,60 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Кабинет технолога</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='mobile.css') }}">
+    <script>
+    // Применяем тему ДО рендера — предотвращает мигание
+    (function() {
+        try {
+            var theme = localStorage.getItem('theme') || 'dark';
+            if (theme === 'light') {
+                document.documentElement.classList.add('light-theme');
+            }
+        } catch(e) {}
+    })();
+    </script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ range(1000000) | random }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='mobile.css') }}?v={{ range(1000000) | random }}">
+    <style>
+    #nprogress {
+        position: fixed;
+        top: 0; left: 0;
+        width: 0%;
+        height: 3px;
+        background: linear-gradient(90deg, #60a5fa, #a78bfa);
+        z-index: 99999;
+        transition: width 0.2s ease;
+        border-radius: 0 2px 2px 0;
+        box-shadow: 0 0 8px rgba(96,165,250,0.6);
+    }
+    </style>
 </head>
 <body>
+    <div id="nprogress"></div>
+
+    <!-- Затемнение при фокусе на поиск (отключено) -->
+    <div id="searchOverlay" style="display:none;"></div>
+
+    <!-- Бургер кнопка — фиксированная у левого края -->
+    <button id="sidebarBurgerBtn" onclick="toggleSidebar()" title="Панель" style="
+        position:fixed; left:12px; top:0; height:68px; z-index:10600;
+        background:none; border:none; cursor:pointer;
+        color:var(--text2); font-size:1.5rem;
+        padding:6px 30px; border-radius:2px;
+        transition:color 0.2s;
+        display:flex; align-items:center;
+        pointer-events:all;
+    " onmouseover="this.style.color='var(--accent)'"
+       onmouseout="this.style.color='var(--text2)'">☰</button>
     <header>
         <div class="container">
             <nav>
-                <a href="{{ url_for('index') }}" class="logo">
+                <a href="{{ url_for('index') }}" class="logo" style="padding-left:50px;">
                     <div class="logo-icon">📺</div>
                     <span class="logo-text">Кабинет технолога</span>
                 </a>
 
                 <!-- Глобальный поиск (десктоп) -->
-                <form action="{{ url_for('search') }}" method="get" class="global-search-form" id="globalSearchForm">
+                <form action="{{ url_for('search') }}" method="get" class="global-search-form" id="globalSearchForm" style="position:relative; z-index:10600;">
                     <div class="global-search-wrap" id="globalSearchWrap">
                         <input type="text" name="q" class="global-search-input"
                                placeholder="Поиск..."
@@ -30,7 +70,7 @@
                             </svg>
                         </button>
                     </div>
-                    <div class="search-suggest" id="searchSuggest"></div>
+                    <div class="search-suggest" id="searchSuggest" style="z-index:10700;"></div>
                 </form>
 
                 <!-- Десктоп навигация -->
@@ -41,6 +81,7 @@
                             <button class="nav-home admin-menu-btn" onclick="toggleAdminMenu()" type="button">👑 Управление ▾</button>
                             <div class="admin-dropdown" id="adminDropdown">
                                 <a href="{{ url_for('admin.users') }}" class="admin-dropdown-item">👤 Пользователи</a>
+                                <a href="{{ url_for('admin.sessions') }}" class="admin-dropdown-item">🕐 История входов</a>
                                 <div class="admin-dropdown-divider"></div>
                                 <a href="{{ url_for('admin.brands') }}" class="admin-dropdown-item">📺 Бренды</a>
                                 <a href="{{ url_for('admin.launchers') }}" class="admin-dropdown-item">⚙️ Лаунчеры</a>
@@ -171,6 +212,82 @@
                 if (ad) ad.classList.remove('open');
             }
         }
+        function toggleSidebar() {
+            var isOpen = document.body.classList.toggle('sidebar-open');
+            var btn = document.getElementById('sidebarBurgerBtn');
+            if (btn) btn.style.display = isOpen ? 'none' : 'flex';
+            if (isOpen) renderSidebarRecent();
+        }
+
+        // ── Тема ──
+        function applyTheme(theme) {
+            var btn = document.getElementById('themeToggleBtn');
+            if (theme === 'light') {
+                document.documentElement.classList.add('light-theme');
+                if (btn) btn.textContent = '☀️ Светлая тема';
+            } else {
+                document.documentElement.classList.remove('light-theme');
+                if (btn) btn.textContent = '🌙 Тёмная тема';
+            }
+        }
+        function toggleTheme() {
+            var current = localStorage.getItem('theme') || 'dark';
+            var next = current === 'dark' ? 'light' : 'dark';
+            localStorage.setItem('theme', next);
+            applyTheme(next);
+        }
+        applyTheme(localStorage.getItem('theme') || 'dark');
+        function loadSidebarBookmarks() {
+            var container = document.getElementById('sidebarBookmarks');
+            if (!container) return;
+            try {
+                var ids = JSON.parse(localStorage.getItem('bookmarks') || '[]');
+                if (!ids.length) {
+                    container.innerHTML = '<span style="font-size:0.82rem;color:var(--muted);">Пусто — добавь через ☆ на карточке</span>';
+                    return;
+                }
+                container.innerHTML = ids.map(function(id) {
+                    return '<a href="/view/' + id + '" style="display:block;padding:6px 10px;border-radius:8px;color:var(--text2);text-decoration:none;font-size:0.82rem;transition:background 0.15s;">📺 Модель #' + id + '</a>';
+                }).join('') + '<a href="/bookmarks?ids=' + ids.join(',') + '" style="display:block;padding:6px 10px;font-size:0.78rem;color:var(--muted);text-decoration:none;margin-top:4px;">Все избранные →</a>';
+            } catch(e) {
+                container.innerHTML = '<a href="/bookmarks" style="font-size:0.82rem;color:var(--accent);">Открыть избранное →</a>';
+            }
+        }
+
+        // ── Недавние страницы ──
+        (function() {
+            var RECENT_KEY = 'recent_pages';
+            var MAX = 7;
+            var skip = ['/', '/bookmarks', '/search'];
+
+            function getRecent() { try { return JSON.parse(localStorage.getItem(RECENT_KEY) || '[]'); } catch(e) { return []; } }
+
+            // Записываем текущую страницу
+            var path = window.location.pathname;
+            var h1 = document.querySelector('h1');
+            var rawTitle = document.title.replace(' — Кабинет технолога', '').replace('Кабинет технолога', '').trim();
+            var title = (h1 && h1.textContent.trim()) || rawTitle || path;
+            if (path && !skip.includes(path)) {
+                var recent = getRecent().filter(function(r) { return r.path !== path; });
+                recent.unshift({ path: path, title: title });
+                if (recent.length > MAX) recent = recent.slice(0, MAX);
+                try { localStorage.setItem(RECENT_KEY, JSON.stringify(recent)); } catch(e) {}
+            }
+
+            window.renderSidebarRecent = function() {
+                var container = document.getElementById('sidebarRecent');
+                if (!container) return;
+                var recent = getRecent();
+                if (!recent.length) {
+                    container.innerHTML = '<span style="font-size:0.82rem;color:var(--muted);padding:0 14px;">Пусто</span>';
+                    return;
+                }
+                container.innerHTML = recent.map(function(r) {
+                    var active = r.path === window.location.pathname;
+                    return '<a href="' + r.path + '" onclick="toggleSidebar()" style="display:block;padding:7px 14px;border-radius:8px;color:' + (active ? 'var(--accent)' : 'var(--text2)') + ';text-decoration:none;font-size:0.83rem;transition:background 0.15s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + r.title + '</a>';
+                }).join('');
+            };
+        })();
         function toggleUserMenu() {
             document.getElementById('userDropdown').classList.toggle('open');
         }
@@ -389,22 +506,174 @@
 
         // ── ГОРЯЧАЯ КЛАВИША / ── фокус на поиск ──
         document.addEventListener('keydown', function(e) {
-            if (e.key === '/' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA' && document.activeElement.tagName !== 'SELECT') {
+            // / или . (русская раскладка) — фокус на поиск
+            if ((e.key === '/' || e.key === '.') && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA' && document.activeElement.tagName !== 'SELECT') {
                 e.preventDefault();
-                const inp = document.getElementById('globalSearchInput') || document.getElementById('mobSearchInput');
-                if (inp) { inp.focus(); inp.select(); }
+                if (window.openSearchOverlay) window.openSearchOverlay();
+            }
+            if (e.key === 'Escape') {
+                if (document.body.classList.contains('search-focused')) {
+                    if (window.closeSearchOverlay) window.closeSearchOverlay();
+                    return;
+                }
+                // Закрыть модальное удаления
+                const modal = document.getElementById('deleteModal');
+                if (modal && modal.style.display === 'block') { modal.style.display = 'none'; return; }
+                // Закрыть боковую панель
+                if (document.body.classList.contains('sidebar-open')) { toggleSidebar(); return; }
+                // Закрыть дропдауны
+                const ud = document.getElementById('userDropdown');
+                if (ud && ud.classList.contains('open')) { ud.classList.remove('open'); return; }
+                const ad = document.getElementById('adminDropdown');
+                if (ad && ad.classList.contains('open')) { ad.classList.remove('open'); return; }
             }
         });
 
+        // Overlay при фокусе на поиск
+        (function() {
+            var inp = document.getElementById('globalSearchInput');
+            var overlay = document.getElementById('searchOverlay');
+            if (!inp) return;
+
+            function openSearch() {
+                if (overlay) overlay.style.display = 'block';
+                document.body.classList.add('search-focused');
+                inp.focus();
+                inp.select();
+            }
+            function closeSearch() {
+                if (overlay) overlay.style.display = 'none';
+                document.body.classList.remove('search-focused');
+                inp.blur();
+            }
+
+            inp.addEventListener('focus', function() {
+                if (overlay) overlay.style.display = 'block';
+                document.body.classList.add('search-focused');
+            });
+
+            // Клик вне формы — закрыть
+            document.addEventListener('click', function(e) {
+                if (!document.body.classList.contains('search-focused')) return;
+                if (!e.target.closest('#globalSearchForm') && !e.target.closest('#searchSuggest')) {
+                    closeSearch();
+                }
+            });
+
+            window.openSearchOverlay = openSearch;
+            window.closeSearchOverlay = closeSearch;
+        })();
+
     </script>
+    <!-- Боковая панель -->
+    <div id="sidebar" style="
+        position:fixed; top:0; width:300px; height:100vh;
+        background:var(--surface); border-right:1px solid var(--border);
+        z-index:9000; transition:left 0.3s cubic-bezier(0.22,1,0.36,1);
+        display:flex; flex-direction:column; overflow:hidden;
+        box-shadow:8px 0 32px rgba(0,0,0,0.4);
+    ">
+        <div style="display:flex; align-items:center; justify-content:space-between; padding:16px 20px; border-bottom:1px solid var(--border); flex-shrink:0;">
+            <a href="{{ url_for('index') }}" onclick="toggleSidebar()" style="display:flex; align-items:center; text-decoration:none;">
+                <div style="width:34px; height:34px; background:var(--accent-g); border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:1rem; box-shadow:0 4px 16px rgba(91,141,238,0.45);">📺</div>
+            </a>
+            <button onclick="toggleSidebar()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1.2rem;">✕</button>
+        </div>
+        <div style="overflow-y:auto; flex:1; padding:16px 20px;">
+            <a href="/bookmarks" onclick="toggleSidebar()" style="display:flex; align-items:center; gap:10px; padding:12px 14px; border-radius:10px; color:var(--text); text-decoration:none; font-weight:600; font-size:0.9rem; transition:background 0.15s;">
+                ★ Избранное
+            </a>
+
+            <button id="themeToggleBtn" onclick="toggleTheme()" style="display:flex; align-items:center; gap:10px; padding:12px 14px; border-radius:10px; color:var(--text); background:none; border:none; cursor:pointer; font-weight:600; font-size:0.9rem; transition:background 0.15s; width:100%; text-align:left;">
+                🌙 Тёмная тема
+            </button>
+
+            <div style="margin-top:20px;">
+                <div style="font-size:0.68rem; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:var(--muted); margin-bottom:8px; padding:0 14px;">🕐 Недавние</div>
+                <div id="sidebarRecent"></div>
+            </div>
+        </div>
+    </div>
+    <div id="sidebarOverlay" onclick="toggleSidebar()" style="
+        display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4);
+        z-index:8999; backdrop-filter:blur(2px);
+    "></div>
+
+    <style>
+    #sidebar { left: -320px; }
+    #sidebar a:hover { background:rgba(96,165,250,0.08); color:var(--accent); }
+    .sidebar-open #sidebar { left:0; }
+    .sidebar-open #sidebarOverlay { display:block; }
+    .sidebar-open #sidebarBurgerBtn { display:none; }
+    </style>
+
     <!-- Блок средней кнопки мыши (колёсико) -->
     <script>
+    // Удаляем старый Service Worker (ломал кэш темы)
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(regs) {
+            regs.forEach(function(r) { r.unregister(); });
+        });
+        if ('caches' in window) {
+            caches.keys().then(function(keys) {
+                keys.forEach(function(k) { caches.delete(k); });
+            });
+        }
+    }
     document.addEventListener('auxclick', function(e) {
         if (e.button === 1) e.preventDefault();
     });
     document.addEventListener('mousedown', function(e) {
         if (e.button === 1) e.preventDefault();
     });
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'F5') { e.preventDefault(); location.reload(); }
+    });
+
+    // ── Сохранять позицию прокрутки ──
+    (function() {
+        var key = 'scroll_' + location.pathname;
+        var saved = sessionStorage.getItem(key);
+        if (saved) window.scrollTo(0, parseInt(saved));
+        window.addEventListener('beforeunload', function() {
+            sessionStorage.setItem(key, window.scrollY);
+        });
+    })();
+    (function() {
+        var bar = document.getElementById('nprogress');
+        var timer = null;
+
+        function start() {
+            bar.style.width = '0%';
+            bar.style.opacity = '1';
+            var w = 0;
+            clearInterval(timer);
+            timer = setInterval(function() {
+                w = w < 80 ? w + Math.random() * 8 : w + 0.5;
+                if (w > 95) w = 95;
+                bar.style.width = w + '%';
+            }, 100);
+        }
+
+        function done() {
+            clearInterval(timer);
+            bar.style.width = '100%';
+            setTimeout(function() {
+                bar.style.opacity = '0';
+                setTimeout(function() { bar.style.width = '0%'; }, 300);
+            }, 200);
+        }
+
+        document.addEventListener('click', function(e) {
+            var a = e.target.closest('a');
+            if (!a) return;
+            var href = a.getAttribute('href');
+            if (!href || href.startsWith('#') || href.startsWith('javascript') || href.startsWith('mailto') || a.target === '_blank') return;
+            start();
+        });
+
+        window.addEventListener('pageshow', done);
+    })();
     </script>
 
     </body>

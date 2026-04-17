@@ -95,6 +95,8 @@ class TVModel(db.Model):
     tester_name = db.Column(db.String(100), nullable=True)
     tester_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
     is_flashable = db.Column(db.Boolean, default=False, nullable=False)
+    sheet_row = db.Column(db.Integer, nullable=True)   # номер строки в Google Sheets
+    sheet_gid = db.Column(db.Integer, nullable=True)   # gid листа в Google Sheets
 
     brand_id = db.Column(db.Integer, db.ForeignKey('brand.id'), nullable=False)
     launcher_type_id = db.Column(db.Integer, db.ForeignKey('launcher_type.id'), nullable=False)
@@ -154,3 +156,14 @@ class AppSetting(db.Model):
     """Системные настройки приложения — key/value"""
     key   = db.Column(db.String(100), primary_key=True)
     value = db.Column(db.Text, nullable=True)
+
+
+class UserSession(db.Model):
+    """История входов пользователей"""
+    id         = db.Column(db.Integer, primary_key=True)
+    user_id    = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False)
+    ip_address = db.Column(db.String(64), nullable=True)
+    user_agent = db.Column(db.String(300), nullable=True)
+    timestamp  = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    user = db.relationship('User', foreign_keys=[user_id])

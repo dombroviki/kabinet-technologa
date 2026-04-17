@@ -19,13 +19,37 @@
             <span class="flashable-badge no">✕ Не прошивается</span>
         {% endif %}
     </div>
-    <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:flex-start;">
+    <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+        <button id="bookmarkBtn" onclick="toggleBookmark({{ model.id }})"
+                class="btn btn-secondary" style="height:40px; font-size:1.1rem;"
+                title="В избранное">☆</button>
         {% if current_user.is_editor %}
-        <a href="{{ url_for('edit_model', id=model.id) }}" class="btn btn-secondary">✏️ Редактировать</a>
-        <button class="btn btn-danger" data-delete-url="{{ url_for('delete_model', id=model.id) }}" onclick="showDeleteModal(this.dataset.deleteUrl)">🗑 Удалить</button>
+        <a href="{{ url_for('edit_model', id=model.id) }}" class="btn btn-secondary" style="height:40px; display:inline-flex; align-items:center;">✏️ Редактировать</a>
+        <button class="btn btn-danger" style="height:40px;" data-delete-url="{{ url_for('delete_model', id=model.id) }}" onclick="showDeleteModal(this.dataset.deleteUrl)">🗑 Удалить</button>
         {% endif %}
     </div>
 </div>
+
+<script>
+(function() {
+    var id = {{ model.id }};
+    var btn = document.getElementById('bookmarkBtn');
+    function getBookmarks() { try { return JSON.parse(localStorage.getItem('bookmarks') || '[]'); } catch(e) { return []; } }
+    function render() {
+        var bm = getBookmarks();
+        btn.textContent = bm.includes(id) ? '★' : '☆';
+        btn.style.color = bm.includes(id) ? '#f59e0b' : '';
+    }
+    window.toggleBookmark = function(id) {
+        var bm = getBookmarks();
+        var idx = bm.indexOf(id);
+        if (idx >= 0) bm.splice(idx, 1); else bm.push(id);
+        localStorage.setItem('bookmarks', JSON.stringify(bm));
+        render();
+    };
+    render();
+})();
+</script>
 
 <div class="detail-grid">
     <div class="detail-card">
@@ -81,6 +105,16 @@
         <div class="detail-label">Дата добавления</div>
         <div class="detail-value" style="color:var(--text2);">{{ model.date_added | local_dt }}</div>
     </div>
+
+    {% if model.sheet_row and model.sheet_gid is not none %}
+    <div class="detail-card">
+        <div class="detail-label">📊 Google Sheets</div>
+        <div class="detail-value">
+            <a href="https://docs.google.com/spreadsheets/d/1rOj9tEkL_mFNV7d4Ao9hy0nlpAv495l6_ClCwqYqoNs/edit#gid={{ model.sheet_gid }}&range=A{{ model.sheet_row }}"
+               target="_blank" rel="noopener" class="btn btn-secondary btn-sm">Открыть строку ↗</a>
+        </div>
+    </div>
+    {% endif %}
 
     {% if model.specifications %}
     <div class="detail-card full-width">
@@ -221,8 +255,14 @@
 </div>
 {% endif %}
 
-<div style="margin-top: 8px;">
+<div style="margin-top: 8px; display:flex; align-items:center; gap:8px;">
     <a href="{{ back_url }}" class="btn btn-secondary">← Назад</a>
+    {% if prev_id %}
+    <a href="{{ url_for('view_model', id=prev_id) }}" class="btn btn-secondary" title="Предыдущая модель">‹ Пред.</a>
+    {% endif %}
+    {% if next_id %}
+    <a href="{{ url_for('view_model', id=next_id) }}" class="btn btn-secondary" title="Следующая модель">След. ›</a>
+    {% endif %}
 </div>
 
 <style>
@@ -633,5 +673,19 @@
         </div>
     </div>
 </div>
+
+{% if prev_id or next_id %}
+<script>
+document.addEventListener('keydown', function(e) {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    {% if prev_id %}
+    if (e.key === 'ArrowLeft') window.location.href = '{{ url_for("view_model", id=prev_id) }}';
+    {% endif %}
+    {% if next_id %}
+    if (e.key === 'ArrowRight') window.location.href = '{{ url_for("view_model", id=next_id) }}';
+    {% endif %}
+});
+</script>
+{% endif %}
 
 {% endblock %}

@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block content %}
+<div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:24px;">
+    <h1 style="margin:0;">★ Избранное</h1>
+    <button class="btn btn-secondary btn-sm" onclick="clearBookmarks()">Очистить всё</button>
+</div>
+
+<div id="bmContent">
+    {% if models %}
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Бренд</th>
+                    <th>Модель</th>
+                    <th>Лот</th>
+                    <th>Версия ПО</th>
+                    <th>Тестировщик</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for m in models %}
+                <tr>
+                    <td class="r-brand">{{ m.brand.name }}</td>
+                    <td>
+                        <div class="r-model">
+                            <span class="r-model-name">{{ m.model }}</span>
+                            {% if m.is_flashable %}<span class="r-flash" title="Прошивается">⚡</span>{% endif %}
+                        </div>
+                    </td>
+                    <td><span class="lot-chip">{{ m.lot }}</span></td>
+                    <td class="r-sw">{{ m.software_version or '—' }}</td>
+                    <td>{% if m.tester_name %}<span class="tester-mini">{{ m.tester_name }}</span>{% else %}<span style="color:var(--muted);">—</span>{% endif %}</td>
+                    <td>
+                        <div style="display:flex; gap:6px;">
+                            <a href="{{ url_for('view_model', id=m.id) }}" class="btn btn-secondary btn-sm">👁</a>
+                            <button class="btn btn-secondary btn-sm" style="color:#f59e0b;" onclick="removeBookmark({{ m.id }}, this.closest('tr'))">★</button>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <span class="empty-icon">☆</span>
+        <p>Избранных моделей нет</p>
+        <p style="font-size:0.85rem; color:var(--muted);">Открой карточку модели и нажми ☆</p>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+function getBookmarks() { try { return JSON.parse(localStorage.getItem('bookmarks') || '[]'); } catch(e) { return []; } }
+
+function removeBookmark(id, row) {
+    var bm = getBookmarks().filter(function(i) { return i !== id; });
+    localStorage.setItem('bookmarks', JSON.stringify(bm));
+    if (bm.length > 0) {
+        window.location.href = '/bookmarks?ids=' + bm.join(',');
+    } else {
+        window.location.href = '/bookmarks';
+    }
+}
+
+function clearBookmarks() {
+    localStorage.removeItem('bookmarks');
+    location.href = '/bookmarks';
+}
+
+// При загрузке если нет ids в URL — редиректим с ids из localStorage
+(function() {
+    if (!window.location.search.includes('ids=')) {
+        var bm = getBookmarks();
+        if (bm.length > 0) {
+            window.location.href = '/bookmarks?ids=' + bm.join(',');
+        }
+    }
+})();
+</script>
+{% endblock %}

@@ -3,7 +3,7 @@ from flask_login import login_required, current_user
 from functools import wraps
 from sqlalchemy import func
 from . import db
-from .models import User, Brand, LauncherType, TVModel, RemoteControl, Tag, tv_model_tags
+from .models import User, Brand, LauncherType, TVModel, RemoteControl, Tag, tv_model_tags, UserSession
 
 admin_bp = Blueprint('admin', __name__)
 
@@ -23,6 +23,14 @@ def admin_required(f):
 def users():
     all_users = User.query.order_by(User.created_at.desc()).all()
     return render_template('admin/users.html', users=all_users)
+
+
+@admin_bp.route('/sessions')
+@login_required
+@admin_required
+def sessions():
+    sessions = UserSession.query.order_by(UserSession.timestamp.desc()).limit(200).all()
+    return render_template('admin/sessions.html', sessions=sessions)
 
 
 @admin_bp.route('/users/create', methods=['GET', 'POST'])

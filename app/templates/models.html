@@ -60,6 +60,10 @@
     {{ sort_link('Названию', 'model') }}
     {{ sort_link('Лоту', 'lot') }}
     {{ sort_link('Дате', 'date') }}
+    <div style="margin-left:auto; display:flex; gap:4px;">
+        <button id="btnCards" class="view-toggle active" title="Карточки" onclick="setView('cards')">▤</button>
+        <button id="btnTable" class="view-toggle" title="Таблица" onclick="setView('table')">☰</button>
+    </div>
 </div>
 
 {% if all_tags %}
@@ -76,15 +80,16 @@
 {% endif %}
 
 <!-- Список карточек -->
-<div class="model-cards">
+<div class="model-cards" id="viewCards">
     {% for model in models %}
-    <div class="model-card" id="card-{{ model.id }}">
+    <div class="model-card" id="card-{{ model.id }}" {% if brand.tab_color %}style="border-left: 3px solid #{{ brand.tab_color[2:] }};"{% endif %}>
 
         <!-- Основная строка — кликабельна -->
         <div class="model-card-row" data-id="{{ model.id }}"
              data-view-url="{{ url_for('view_model', id=model.id) }}"
              {% if current_user.is_editor %}data-edit-url="{{ url_for('edit_model', id=model.id) }}"{% endif %}
-             onclick="toggleCard(this.dataset.id)">
+             onclick="toggleCard(this.dataset.id)"
+             ondblclick="window.location.href=this.dataset.viewUrl">
             <div class="model-card-main">
                 <span class="model-dot"></span>
                 <span class="model-card-name">{{ model.model }}</span>
@@ -166,22 +171,80 @@
     {% endif %}
 </div>
 
-{% if pagination.pages > 1 %}
-<div class="pagination">
-    {% if pagination.has_prev %}
-        <a href="{{ url_for('models_list', brand_id=brand.id, launcher_id=launcher.id, sort=sort, order=order, q=q, page=pagination.prev_num) }}" class="page-link">←</a>
-    {% endif %}
-    {% for p in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
-        {% if p %}
-            {% if p == pagination.page %}<span class="page-current">{{ p }}</span>
-            {% else %}<a href="{{ url_for('models_list', brand_id=brand.id, launcher_id=launcher.id, sort=sort, order=order, q=q, page=p) }}" class="page-link">{{ p }}</a>{% endif %}
-        {% else %}<span style="padding:8px 4px; color:var(--muted);">…</span>{% endif %}
-    {% endfor %}
-    {% if pagination.has_next %}
-        <a href="{{ url_for('models_list', brand_id=brand.id, launcher_id=launcher.id, sort=sort, order=order, q=q, page=pagination.next_num) }}" class="page-link">→</a>
-    {% endif %}
+<!-- Таблица (скрыта по умолчанию) -->
+<div id="viewTable" style="display:none;">
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Модель</th>
+                    <th>Лот</th>
+                    <th>Версия ПО</th>
+                    <th>Пульт</th>
+                    <th>Тестировщик</th>
+                    <th>Дата</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for model in models %}
+                <tr style="cursor:pointer;" ondblclick="window.location.href='{{ url_for('view_model', id=model.id) }}'">
+                    <td>
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <span class="model-dot"></span>
+                            <span style="font-weight:600; font-family:'Outfit',sans-serif;">{{ model.model }}</span>
+                            {% if model.is_flashable %}<span class="r-flash" title="Прошивается">⚡</span>{% endif %}
+                            {% for tag in model.tags %}<span class="tag-chip" style="--tag-color:{{ tag.color }}; font-size:0.7rem; padding:1px 7px;">{{ tag.name }}</span>{% endfor %}
+                        </div>
+                    </td>
+                    <td><span class="lot-chip">{{ model.lot }}</span></td>
+                    <td class="r-sw">{{ model.software_version or '—' }}</td>
+                    <td style="color:var(--text2); font-size:0.85rem;">{{ model.remote.name if model.remote else '—' }}</td>
+                    <td>{% if model.tester_name %}<span class="tester-mini">{{ model.tester_name }}</span>{% else %}<span style="color:var(--muted);">—</span>{% endif %}</td>
+                    <td class="date-text">{{ model.date_added | local_dt }}</td>
+                    <td>
+                        <div class="actions-cell">
+                            <a href="{{ url_for('view_model', id=model.id) }}" class="btn btn-secondary btn-sm">👁</a>
+                            {% if current_user.is_editor %}
+                            <a href="{{ url_for('edit_model', id=model.id) }}" class="btn btn-secondary btn-sm">✏️</a>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% if pagination.has_next %}
+<div id="infiniteScrollSentinel">
+    <div id="skeletonCards" style="display:none;">
+        {% for i in range(3) %}
+        <div class="model-card skeleton-card">
+            <div class="skeleton-row">
+                <div class="skeleton-dot"></div>
+                <div class="skeleton-line" style="width:40%;"></div>
+                <div style="margin-left:auto; display:flex; gap:8px;">
+                    <div class="skeleton-pill"></div>
+                    <div class="skeleton-pill"></div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
 </div>
 {% endif %}
+
+<div id="infiniteScrollData"
+     data-brand="{{ brand.id }}"
+     data-launcher="{{ launcher.id }}"
+     data-sort="{{ sort }}"
+     data-order="{{ order }}"
+     data-q="{{ q }}"
+     data-has-next="{{ 'true' if pagination.has_next else 'false' }}"
+     data-next-page="{{ pagination.next_num if pagination.has_next else '' }}"
+     style="display:none;"></div>
 
 {% else %}
 <div class="empty-state">
@@ -616,6 +679,174 @@ document.addEventListener('click', function(e) {
 .local-suggest-item:focus { background: rgba(79,142,240,0.08); color: var(--text); }
 .lsi-model { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lsi-meta  { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+
+.view-toggle {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    border-radius: 7px;
+    padding: 5px 10px;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.15s;
+    line-height: 1;
+}
+.view-toggle.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: white;
+}
+.view-toggle:hover:not(.active) { color: var(--text); border-color: var(--text2); }
+
+/* Skeleton loading */
+@keyframes shimmer {
+    0% { background-position: -400px 0; }
+    100% { background-position: 400px 0; }
+}
+.skeleton-card {
+    pointer-events: none;
+}
+.skeleton-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 20px;
+    min-height: 56px;
+}
+.skeleton-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: linear-gradient(90deg, var(--surface2) 25%, var(--border) 50%, var(--surface2) 75%);
+    background-size: 400px 100%;
+    animation: shimmer 1.4s infinite;
+    flex-shrink: 0;
+}
+.skeleton-line {
+    height: 14px;
+    border-radius: 6px;
+    background: linear-gradient(90deg, var(--surface2) 25%, var(--border) 50%, var(--surface2) 75%);
+    background-size: 400px 100%;
+    animation: shimmer 1.4s infinite;
+}
+.skeleton-pill {
+    width: 60px; height: 24px;
+    border-radius: 20px;
+    background: linear-gradient(90deg, var(--surface2) 25%, var(--border) 50%, var(--surface2) 75%);
+    background-size: 400px 100%;
+    animation: shimmer 1.4s infinite;
+}
 </style>
+
+<script>
+(function() {
+    var STORAGE_KEY = 'models_view_mode';
+    var mode = localStorage.getItem(STORAGE_KEY) || 'cards';
+
+    function applyView(m) {
+        var cards = document.getElementById('viewCards');
+        var table = document.getElementById('viewTable');
+        var btnCards = document.getElementById('btnCards');
+        var btnTable = document.getElementById('btnTable');
+        if (m === 'table') {
+            cards.style.display = 'none';
+            table.style.display = 'block';
+            btnCards.classList.remove('active');
+            btnTable.classList.add('active');
+        } else {
+            cards.style.display = '';
+            table.style.display = 'none';
+            btnCards.classList.add('active');
+            btnTable.classList.remove('active');
+        }
+    }
+
+    window.setView = function(m) {
+        mode = m;
+        localStorage.setItem(STORAGE_KEY, m);
+        applyView(m);
+    };
+
+    applyView(mode);
+})();
+
+// ── Infinite Scroll ──
+(function() {
+    var data = document.getElementById('infiniteScrollData');
+    if (!data) return;
+
+    var hasNext = data.dataset.hasNext === 'true';
+    var nextPage = parseInt(data.dataset.nextPage);
+    var loading = false;
+    var sentinel = document.getElementById('infiniteScrollSentinel');
+    var skeletonCards = document.getElementById('skeletonCards');
+
+    function buildCardHtml(m) {
+        var tags = m.tags.map(function(t) {
+            return '<span class="tag-chip" style="--tag-color:' + t.color + '; margin-right:6px;">' + t.name + '</span>';
+        }).join('');
+        var flash = m.is_flashable ? '<span class="flash-pill yes">⚡ Прошивается</span>' : '<span class="flash-pill no">✕ Не прошивается</span>';
+        return '<div class="model-card" id="card-' + m.id + '">' +
+            '<div class="model-card-row" data-id="' + m.id + '" data-view-url="/view/' + m.id + '" onclick="toggleCard(this.dataset.id)" ondblclick="window.location.href=this.dataset.viewUrl">' +
+            '<div class="model-card-main"><span class="model-dot"></span><span class="model-card-name">' + m.model + '</span></div>' +
+            '<div class="model-card-meta">' + tags + (m.software_version !== '—' ? '<span class="model-card-sw">💿 ' + m.software_version + '</span>' : '') + flash + '<span class="lot-chip">' + m.lot + '</span></div>' +
+            '<div class="model-card-chevron" id="chevron-' + m.id + '">›</div></div>' +
+            '<div class="model-card-panel" id="panel-' + m.id + '"><div class="model-card-details">' +
+            '<div class="mcd-item"><span class="mcd-label">Пульт</span><span class="mcd-value">' + m.remote + '</span></div>' +
+            '<div class="mcd-item"><span class="mcd-label">Тестировщик</span><span class="mcd-value">' + m.tester_name + '</span></div>' +
+            '<div class="mcd-item"><span class="mcd-label">Версия ПО</span><span class="mcd-value">' + m.software_version + '</span></div>' +
+            '<div class="mcd-item"><span class="mcd-label">Лот</span><span class="mcd-value">' + m.lot + '</span></div>' +
+            '<div class="mcd-item"><span class="mcd-label">Добавлено</span><span class="mcd-value">' + m.date_added + '</span></div>' +
+            '</div><div class="model-card-actions">' +
+            '<a href="/view/' + m.id + '" class="btn btn-secondary btn-sm">👁 Просмотр</a>' +
+            '</div></div></div>';
+    }
+
+    function buildTableRow(m) {
+        var flash = m.is_flashable ? '<span class="r-flash">⚡</span>' : '';
+        return '<tr ondblclick="window.location.href=\'/view/' + m.id + '\'">' +
+            '<td><div style="display:flex;align-items:center;gap:8px;"><span class="model-dot"></span><span style="font-weight:600;">' + m.model + '</span>' + flash + '</div></td>' +
+            '<td><span class="lot-chip">' + m.lot + '</span></td>' +
+            '<td class="r-sw">' + m.software_version + '</td>' +
+            '<td style="color:var(--text2);font-size:0.85rem;">' + m.remote + '</td>' +
+            '<td>' + (m.tester_name !== '—' ? '<span class="tester-mini">' + m.tester_name + '</span>' : '<span style="color:var(--muted);">—</span>') + '</td>' +
+            '<td class="date-text">' + m.date_added + '</td>' +
+            '<td><a href="/view/' + m.id + '" class="btn btn-secondary btn-sm">👁</a></td>' +
+            '</tr>';
+    }
+
+    function loadMore() {
+        if (loading || !hasNext) return;
+        loading = true;
+        if (skeletonCards) skeletonCards.style.display = 'block';
+
+        var url = '/api/models/' + data.dataset.brand + '/' + data.dataset.launcher +
+            '?page=' + nextPage + '&sort=' + data.dataset.sort + '&order=' + data.dataset.order +
+            (data.dataset.q ? '&q=' + encodeURIComponent(data.dataset.q) : '');
+
+        fetch(url)
+            .then(function(r) { return r.json(); })
+            .then(function(resp) {
+                var cards = document.getElementById('viewCards');
+                var tableBody = document.querySelector('#viewTable tbody');
+                resp.items.forEach(function(m) {
+                    if (cards) cards.insertAdjacentHTML('beforeend', buildCardHtml(m));
+                    if (tableBody) tableBody.insertAdjacentHTML('beforeend', buildTableRow(m));
+                });
+                hasNext = resp.has_next;
+                nextPage = resp.next_page;
+                loading = false;
+                if (skeletonCards) skeletonCards.style.display = 'none';
+                if (!hasNext && sentinel) sentinel.style.display = 'none';
+            })
+            .catch(function() { loading = false; if (skeletonCards) skeletonCards.style.display = 'none'; });
+    }
+
+    var observer = new IntersectionObserver(function(entries) {
+        if (entries[0].isIntersecting) loadMore();
+    }, { rootMargin: '200px' });
+
+    if (sentinel) observer.observe(sentinel);
+})();
+</script>
 
 {% endblock %}

@@ -94,6 +94,22 @@ def init_app(app):
             return '—'
         return (dt + timedelta(hours=3)).strftime('%d.%m.%Y %H:%M')
 
+    @app.context_processor
+    def inject_all_brands():
+        try:
+            from flask_login import current_user
+            if current_user.is_authenticated:
+                return {'all_brands': Brand.query.order_by(Brand.name).all()}
+        except Exception:
+            pass
+        return {'all_brands': []}
+
+    @app.route('/sw.js')
+    def service_worker():
+        from flask import send_from_directory
+        return send_from_directory(app.root_path + '/../', 'sw.js',
+                                   mimetype='application/javascript')
+
     @app.route('/')
     @login_required
     def index():
@@ -131,6 +147,70 @@ def init_app(app):
         launcher_types = db.session.query(LauncherType).join(TVModel)\
             .filter(TVModel.brand_id == brand_id).distinct().all()
         return render_template('brand.html', brand=brand, launcher_types=launcher_types)
+
+    @app.route('/api/models/<int:brand_id>/<int:launcher_id>')
+    @login_required
+    def api_models(brand_id, launcher_id):
+        from flask import jsonify
+        from sqlalchemy import func, cast, Integer
+        from sqlalchemy.orm import joinedload
+        from datetime import timedelta
+
+        sort  = request.args.get('sort', 'date')
+        order = request.args.get('order', 'desc')
+        q     = request.args.get('q', '').strip()
+        page  = request.args.get('page', 1, type=int)
+        tag_filter = request.args.get('tag', type=int)
+
+        if sort == 'lot':
+            try:
+                db_url = str(db.engine.url)
+                if 'postgresql' in db_url or 'postgres' in db_url:
+                    lot_num = func.cast(func.regexp_replace(TVModel.lot, r'[^0-9].*', '', 'g'), Integer)
+                else:
+                    lot_num = TVModel.lot
+                sort_expr = lot_num.asc() if order == 'asc' else lot_num.desc()
+            except Exception:
+                sort_expr = TVModel.lot.asc() if order == 'asc' else TVModel.lot.desc()
+        else:
+            sort_map = {'model': TVModel.model, 'tester': TVModel.tester_name, 'date': TVModel.date_added}
+            sort_col = sort_map.get(sort, TVModel.date_added)
+            sort_expr = sort_col.asc() if order == 'asc' else sort_col.desc()
+
+        query = TVModel.query.options(
+            joinedload(TVModel.tags),
+            joinedload(TVModel.remote),
+        ).filter_by(brand_id=brand_id, launcher_type_id=launcher_id)
+        if q:
+            query = query.filter(TVModel.model.ilike(f'%{q}%'))
+        if tag_filter:
+            query = query.filter(TVModel.tags.any(Tag.id == tag_filter))
+
+        pagination = query.order_by(sort_expr).paginate(page=page, per_page=20, error_out=False)
+
+        items = []
+        for m in pagination.items:
+            dt = m.date_added
+            if dt:
+                dt = (dt + timedelta(hours=3)).strftime('%d.%m.%Y %H:%M')
+            items.append({
+                'id': m.id,
+                'model': m.model,
+                'lot': m.lot,
+                'software_version': m.software_version or '—',
+                'tester_name': m.tester_name or '—',
+                'remote': m.remote.name if m.remote else '—',
+                'is_flashable': m.is_flashable,
+                'date_added': dt or '—',
+                'tags': [{'name': t.name, 'color': t.color} for t in m.tags],
+            })
+
+        return jsonify({
+            'items': items,
+            'has_next': pagination.has_next,
+            'next_page': pagination.next_num,
+            'total': pagination.total,
+        })
 
     @app.route('/brand/<int:brand_id>/launcher/<int:launcher_id>')
     @login_required
@@ -303,8 +383,20 @@ def init_app(app):
             .order_by(AuditLog.timestamp.desc()).limit(30).all()
         comments = ModelComment.query.filter_by(tv_model_id=id)\
             .order_by(ModelComment.timestamp.asc()).all()
+
+        # Предыдущая и следующая модель в том же бренде/лаунчере
+        siblings = TVModel.query.filter_by(
+            brand_id=model.brand_id,
+            launcher_type_id=model.launcher_type_id
+        ).order_by(TVModel.model, TVModel.lot).all()
+        ids = [m.id for m in siblings]
+        idx = ids.index(id) if id in ids else -1
+        prev_id = ids[idx - 1] if idx > 0 else None
+        next_id = ids[idx + 1] if idx >= 0 and idx < len(ids) - 1 else None
+
         return render_template('view.html', model=model, back_url=back_url,
-                               audit_log=audit_log, comments=comments)
+                               audit_log=audit_log, comments=comments,
+                               prev_id=prev_id, next_id=next_id)
 
     @app.route('/edit/<int:id>', methods=['GET', 'POST'])
     @login_required
@@ -751,6 +843,27 @@ def init_app(app):
         db.session.commit()
         return jsonify({'ok': True})
 
+    @app.route('/bookmarks')
+    @login_required
+    def bookmarks():
+        ids_raw = request.args.get('ids', '')
+        models = []
+        if ids_raw:
+            try:
+                ids = [int(i) for i in ids_raw.split(',') if i.strip().isdigit()]
+                if ids:
+                    from sqlalchemy.orm import joinedload
+                    models = TVModel.query.options(
+                        joinedload(TVModel.brand),
+                        joinedload(TVModel.launcher_type),
+                    ).filter(TVModel.id.in_(ids)).all()
+                    # Сохраняем порядок как в ids
+                    id_to_model = {m.id: m for m in models}
+                    models = [id_to_model[i] for i in ids if i in id_to_model]
+            except Exception:
+                pass
+        return render_template('bookmarks.html', models=models)
+
     @app.route('/search')
     @login_required
     def search():
@@ -961,6 +1074,7 @@ def init_app(app):
                         brand = brand_cache[brand_name]
 
                         ws = wb[sheet_name]
+                        sheet_gid = getattr(ws, 'sheet_id', None)
                         try:
                             tab_color = ws.sheet_properties.tabColor
                             if tab_color and not brand.tab_color:
@@ -1028,6 +1142,10 @@ def init_app(app):
                                         upd['remote_control_id'] = remote_id
                                     if bool(flashable) != bool(cur['is_flashable']):
                                         upd['is_flashable'] = flashable
+                                    # Обновляем sheet_row/sheet_gid если ещё не заполнены
+                                    if not cur.get('sheet_row') and sheet_gid is not None:
+                                        upd['sheet_row'] = row_num
+                                        upd['sheet_gid'] = sheet_gid
                                     # Обновляем date_added если есть дата из комментария
                                     # и текущая дата выглядит как дата массового импорта
                                     tc_date = dates_map.get((sheet_name, row_num))
@@ -1054,6 +1172,8 @@ def init_app(app):
                                 tester_name=tester or None,
                                 tester_id=None,
                                 date_added=dates_map.get((sheet_name, row_num)),
+                                sheet_row=row_num,
+                                sheet_gid=sheet_gid,
                             ))
                             existing_set.add((brand.id, model_name, lot))
                             added += 1
@@ -1227,6 +1347,7 @@ def init_app(app):
                         brand = brand_cache[brand_name]
 
                         ws = wb[sheet_name]
+                        sheet_gid = getattr(ws, 'sheet_id', None)
 
                         # Сохраняем цвет вкладки
                         try:
@@ -1312,6 +1433,7 @@ def init_app(app):
                                         **(({'tester_name': tester}) if tester else {}),
                                         **(({'remote_control_id': remote_id}) if remote_id else {}),
                                         'is_flashable': flashable,
+                                        **(({'sheet_row': row_idx, 'sheet_gid': sheet_gid}) if row_idx and sheet_gid is not None else {}),
                                     })
                                 skipped += 1
                                 continue
@@ -1327,6 +1449,8 @@ def init_app(app):
                                 tester_name=tester or None,
                                 tester_id=current_user.id if tester else None,
                                 date_added=tc_dates.get((sheet_name, row_idx)) if row_idx else None,
+                                sheet_row=row_idx,
+                                sheet_gid=sheet_gid,
                             )
                             db.session.add(tv)
                             existing_set.add((brand.id, model_name, lot))

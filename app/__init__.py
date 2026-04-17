@@ -3,11 +3,13 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
 from flask_wtf.csrf import CSRFProtect
 from config import Config
+from flask_compress import Compress
 import os
 
 db = SQLAlchemy()
 login_manager = LoginManager()
 csrf = CSRFProtect()
+compress = Compress()
 
 def create_app(config_class=Config):
     app = Flask(__name__)
@@ -21,6 +23,7 @@ def create_app(config_class=Config):
 
     db.init_app(app)
     csrf.init_app(app)
+    compress.init_app(app)
 
     # Настройки пула соединений — автовосстановление после обрыва
     app.config.setdefault('SQLALCHEMY_ENGINE_OPTIONS', {

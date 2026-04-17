@@ -34,6 +34,17 @@ def login():
 
         login_user(user, remember=remember)
         try:
+            from .models import UserSession
+            session_entry = UserSession(
+                user_id=user.id,
+                ip_address=request.remote_addr,
+                user_agent=request.headers.get('User-Agent', '')[:300]
+            )
+            db.session.add(session_entry)
+            db.session.commit()
+        except Exception:
+            pass
+        try:
             import os, json, hashlib, base64, platform
             from cryptography.fernet import Fernet
             home = os.environ.get('APPDATA') or os.environ.get('USERPROFILE') or os.path.expanduser('~')
