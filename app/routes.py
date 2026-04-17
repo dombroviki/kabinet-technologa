@@ -971,6 +971,7 @@ def init_app(app):
                     logger.warning('AUTO_IMPORT: extracting threaded comments...')
                     comments_from_cells = {}
                     dates_map = {}
+                    sheet_gid_map = {}
                     try:
                         import zipfile as zf_mod
                         from xml.etree import ElementTree as ET
@@ -1198,6 +1199,8 @@ def init_app(app):
                             'is_flashable': m.is_flashable,
                             'tester_name': m.tester_name,
                             'tester_id': m.tester_id,
+                            'sheet_row': m.sheet_row,
+                            'sheet_gid': m.sheet_gid,
                         } for m in new_models]
                         stmt = pg_insert(TVModel).values(rows)
                         stmt = stmt.on_conflict_do_nothing()
@@ -1287,6 +1290,7 @@ def init_app(app):
                     # Читаем threaded comments через zipfile
                     tc_comments = {}
                     tc_dates = {}
+                    sheet_gid_map = {}
                     try:
                         TC_NS = 'http://schemas.microsoft.com/office/spreadsheetml/2018/threadedcomments'
                         WB_NS = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
