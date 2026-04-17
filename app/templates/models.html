@@ -796,6 +796,7 @@ document.addEventListener('click', function(e) {
             '<div class="mcd-item"><span class="mcd-label">Версия ПО</span><span class="mcd-value">' + m.software_version + '</span></div>' +
             '<div class="mcd-item"><span class="mcd-label">Лот</span><span class="mcd-value">' + m.lot + '</span></div>' +
             '<div class="mcd-item"><span class="mcd-label">Добавлено</span><span class="mcd-value">' + m.date_added + '</span></div>' +
+            (m.specifications ? '<div class="mcd-item mcd-full"><span class="mcd-label">Характеристики</span><span class="mcd-value" style="white-space:pre-line;">' + m.specifications + '</span></div>' : '') +
             '</div><div class="model-card-actions">' +
             '<a href="/view/' + m.id + '" class="btn btn-secondary btn-sm">👁 Просмотр</a>' +
             '</div></div></div>';

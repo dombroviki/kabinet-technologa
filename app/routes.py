@@ -203,6 +203,7 @@ def init_app(app):
                 'is_flashable': m.is_flashable,
                 'date_added': dt or '—',
                 'tags': [{'name': t.name, 'color': t.color} for t in m.tags],
+                'specifications': m.specifications or '',
             })
 
         return jsonify({
@@ -1153,8 +1154,8 @@ def init_app(app):
                                         upd['remote_control_id'] = remote_id
                                     if bool(flashable) != bool(cur['is_flashable']):
                                         upd['is_flashable'] = flashable
-                                    # Обновляем sheet_row/sheet_gid если ещё не заполнены
-                                    if not cur.get('sheet_row') and sheet_gid is not None:
+                                    # Всегда обновляем sheet_row/sheet_gid
+                                    if sheet_gid is not None:
                                         upd['sheet_row'] = row_num
                                         upd['sheet_gid'] = sheet_gid
                                     # Обновляем date_added если есть дата из комментария
