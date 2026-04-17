@@ -957,6 +957,12 @@ def init_app(app):
             return jsonify({'ok': False, 'error': 'Только xlsx/xls'}), 400
 
         file_bytes = io.BytesIO(file.read())
+        # gid карта от Apps Script: {"ACELINE": 123456, ...}
+        import json as _json
+        try:
+            sheet_gids_from_request = _json.loads(request.form.get('sheet_gids', '{}'))
+        except Exception:
+            sheet_gids_from_request = {}
         app_obj = current_app._get_current_object()
 
         def do_import():
@@ -971,7 +977,7 @@ def init_app(app):
                     logger.warning('AUTO_IMPORT: extracting threaded comments...')
                     comments_from_cells = {}
                     dates_map = {}
-                    sheet_gid_map = {}
+                    sheet_gid_map = dict(sheet_gids_from_request)  # из Apps Script
                     try:
                         import zipfile as zf_mod
                         from xml.etree import ElementTree as ET
@@ -983,7 +989,9 @@ def init_app(app):
                         wb_xml = ET.fromstring(zf.read('xl/workbook.xml'))
                         sheet_els = wb_xml.findall(f'.//{{{WB_NS}}}sheet')
                         sheets_order = [s.get('name') for s in sheet_els]
-                        sheet_gid_map = {s.get('name'): int(s.get('sheetId', 0)) for s in sheet_els}
+                        # Если Apps Script не передал gids — берём из xlsx как fallback
+                        if not sheet_gid_map:
+                            sheet_gid_map = {s.get('name'): int(s.get('sheetId', 0)) for s in sheet_els}
 
                         for i, sname in enumerate(sheets_order, start=1):
                             rels_path = f'xl/worksheets/_rels/sheet{i}.xml.rels'
