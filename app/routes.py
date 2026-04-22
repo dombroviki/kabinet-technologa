@@ -1,80 +1,3 @@
-def sync_model_to_sheets(app_obj, model_id):
-    """Записывает данные модели обратно в Google Sheets в фоновом потоке."""
-    import threading
-    def _do():
-        with app_obj.app_context():
-            try:
-                import gspread
-                from google.oauth2.service_account import Credentials
-                from .models import TVModel, RemoteControl
-                import os
-
-                model = TVModel.query.get(model_id)
-                if not model or not model.sheet_row or model.sheet_gid is None:
-                    return
-
-                creds_file = app_obj.config.get('SHEETS_CREDENTIALS_FILE')
-                spreadsheet_id = app_obj.config.get('SHEETS_SPREADSHEET_ID')
-                if not creds_file or not os.path.exists(creds_file):
-                    return
-
-                scopes = ['https://www.googleapis.com/auth/spreadsheets']
-                creds = Credentials.from_service_account_file(creds_file, scopes=scopes)
-                gc = gspread.authorize(creds)
-                spreadsheet = gc.open_by_key(spreadsheet_id)
-
-                # Находим лист по gid
-                ws = next((w for w in spreadsheet.worksheets() if w.id == model.sheet_gid), None)
-                if not ws:
-                    return
-
-                # Верификация — проверяем что в A{sheet_row} наша модель и в B{sheet_row} наш лот
-                cell_a = ws.cell(model.sheet_row, 1).value or ''
-                cell_b = ws.cell(model.sheet_row, 2).value or ''
-                # Лот в таблице может быть числом (float), нормализуем
-                lot_in_sheet = str(cell_b).strip()
-                if lot_in_sheet.endswith('.0'):
-                    lot_in_sheet = lot_in_sheet[:-2]
-                if cell_a.strip() != model.model.strip() or lot_in_sheet != model.lot.strip():
-                    import logging
-                    logging.warning(f'SHEETS_SYNC: verification failed for model {model.model} lot {model.lot}: '
-                                    f'A{model.sheet_row}="{cell_a}", B{model.sheet_row}="{cell_b}"')
-                    return
-
-                row = model.sheet_row
-                # Колонки (1-indexed для gspread): H=8 тест, I=9 шьём, J=10 версия, K=11 пульт
-                COL_TESTER   = 8
-                COL_FLASH    = 9
-                COL_SW       = 10
-                COL_REMOTE   = 11
-
-                updates = []
-                if model.tester_name:
-                    updates.append({'range': f'{chr(64+COL_TESTER)}{row}', 'values': [[model.tester_name]]})
-                updates.append({'range': f'{chr(64+COL_FLASH)}{row}', 'values': [['Да' if model.is_flashable else '']]})
-                if model.software_version:
-                    updates.append({'range': f'{chr(64+COL_SW)}{row}', 'values': [[model.software_version]]})
-                remote_name = model.remote.name if model.remote else ''
-                if remote_name:
-                    updates.append({'range': f'{chr(64+COL_REMOTE)}{row}', 'values': [[remote_name]]})
-
-                if updates:
-                    ws.batch_update(updates)
-
-                # Характеристики — note на ячейке J
-                if model.specifications:
-                    ws.update_note(f'J{row}', model.specifications)
-
-                import logging
-                logging.warning(f'SHEETS_SYNC: updated row {row} for model {model.model}')
-
-            except Exception as e:
-                import logging
-                logging.error(f'SHEETS_SYNC error: {e}')
-
-    threading.Thread(target=_do, daemon=True).start()
-
-
 from flask import render_template, redirect, url_for, request, flash, current_app, send_from_directory
 from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
@@ -569,8 +492,6 @@ def init_app(app):
                     log_action('edit', model, field=field_key, old_value=old_v, new_value=new_v)
 
             db.session.commit()
-            # Синхронизируем изменения обратно в Google Sheets
-            sync_model_to_sheets(current_app._get_current_object(), id)
             flash('Модель обновлена', 'success')
             back_url = request.form.get('back_url', '')
             return redirect(url_for('edit_model', id=id, back_url=back_url))

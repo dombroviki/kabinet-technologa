@@ -51,7 +51,7 @@
     <header>
         <div class="container">
             <nav>
-                <a href="{{ url_for('index') }}" class="logo" style="padding-left:50px;">
+                <a href="{{ url_for('index') }}" class="logo" style="margin-left:0px;">
                     <div class="logo-icon">📺</div>
                     <span class="logo-text">Кабинет технолога</span>
                 </a>
@@ -675,6 +675,60 @@
         window.addEventListener('pageshow', done);
     })();
     </script>
+
+<canvas id="bgCanvas" style="position:fixed;inset:0;width:100%;height:100%;z-index:0;pointer-events:none;"></canvas>
+<script>
+(function() {
+    var canvas = document.getElementById('bgCanvas');
+    var ctx = canvas.getContext('2d');
+    var W, H, t = 0;
+
+    var orbs = [
+        { x: 0.25, y: 0.25, r: 0.55, hue: 218, sat: 70, speed: 0.00008, phase: 0 },
+        { x: 0.75, y: 0.65, r: 0.50, hue: 225, sat: 65, speed: 0.00006, phase: 2.1 },
+        { x: 0.55, y: 0.15, r: 0.45, hue: 232, sat: 60, speed: 0.00010, phase: 4.2 },
+        { x: 0.15, y: 0.75, r: 0.48, hue: 210, sat: 55, speed: 0.00007, phase: 1.0 },
+        { x: 0.85, y: 0.20, r: 0.42, hue: 240, sat: 50, speed: 0.00009, phase: 3.3 },
+    ];
+
+    function resize() {
+        W = canvas.width = window.innerWidth;
+        H = canvas.height = window.innerHeight;
+    }
+
+    function draw() {
+        t++;
+        ctx.clearRect(0, 0, W, H);
+
+        // Liquid glass: мягкое смешивание через globalCompositeOperation
+        ctx.globalCompositeOperation = 'source-over';
+
+        orbs.forEach(function(o) {
+            var angle = t * o.speed * Math.PI * 2 + o.phase;
+            var cx = (o.x + Math.sin(angle) * 0.18 + Math.cos(angle * 0.6) * 0.08) * W;
+            var cy = (o.y + Math.cos(angle * 0.8) * 0.15 + Math.sin(angle * 0.4) * 0.10) * H;
+            var radius = o.r * Math.min(W, H) * 0.7;
+
+            var g = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
+            g.addColorStop(0,   'hsla(' + o.hue + ',' + o.sat + '%,45%,0.22)');
+            g.addColorStop(0.3, 'hsla(' + o.hue + ',' + o.sat + '%,40%,0.14)');
+            g.addColorStop(0.7, 'hsla(' + o.hue + ',' + o.sat + '%,35%,0.06)');
+            g.addColorStop(1,   'hsla(' + o.hue + ',' + o.sat + '%,30%,0)');
+
+            ctx.beginPath();
+            ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+            ctx.fillStyle = g;
+            ctx.fill();
+        });
+
+        requestAnimationFrame(draw);
+    }
+
+    resize();
+    draw();
+    window.addEventListener('resize', resize);
+})();
+</script>
 
     </body>
 </html>

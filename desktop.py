@@ -284,6 +284,26 @@ def show_splash():
 
 if __name__ == '__main__':
     import platform
+
+    # ── SINGLE INSTANCE ──────────────────────────────────────────────────────
+    # Если Flask уже слушает порт 5000 — приложение уже запущено
+    _already_running = False
+    try:
+        with socket.create_connection(('127.0.0.1', 5000), timeout=0.5):
+            _already_running = True
+    except OSError:
+        pass
+
+    if _already_running:
+        # Просто показываем уведомление и выходим
+        _root = tk.Tk()
+        _root.withdraw()
+        import tkinter.messagebox as mb
+        mb.showinfo('Кабинет технолога', 'Приложение уже запущено.\nПроверьте системный трей.')
+        _root.destroy()
+        sys.exit(0)
+    # ─────────────────────────────────────────────────────────────────────────
+
     print(f"HOME: {os.path.expanduser('~')}")
     print(f"USERNAME: {os.environ.get('USERNAME')}")
     print(f"NODE: {platform.node()}")

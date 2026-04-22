@@ -23,6 +23,10 @@
         <button id="bookmarkBtn" onclick="toggleBookmark({{ model.id }})"
                 class="btn btn-secondary" style="height:40px; font-size:1.1rem;"
                 title="В избранное">☆</button>
+        {% if model.sheet_row and model.sheet_gid is not none %}
+        <a href="https://docs.google.com/spreadsheets/d/1rOj9tEkL_mFNV7d4Ao9hy0nlpAv495l6_ClCwqYqoNs/edit#gid={{ model.sheet_gid }}&range=A{{ model.sheet_row }}"
+           target="_blank" rel="noopener" class="btn btn-secondary" style="height:40px; display:inline-flex; align-items:center;">📊 Sheets</a>
+        {% endif %}
         {% if current_user.is_editor %}
         <a href="{{ url_for('edit_model', id=model.id) }}" class="btn btn-secondary" style="height:40px; display:inline-flex; align-items:center;">✏️ Редактировать</a>
         <button class="btn btn-danger" style="height:40px;" data-delete-url="{{ url_for('delete_model', id=model.id) }}" onclick="showDeleteModal(this.dataset.deleteUrl)">🗑 Удалить</button>
@@ -105,16 +109,6 @@
         <div class="detail-label">Дата добавления</div>
         <div class="detail-value" style="color:var(--text2);">{{ model.date_added | local_dt }}</div>
     </div>
-
-    {% if model.sheet_row and model.sheet_gid is not none %}
-    <div class="detail-card">
-        <div class="detail-label">📊 Google Sheets</div>
-        <div class="detail-value">
-            <a href="https://docs.google.com/spreadsheets/d/1rOj9tEkL_mFNV7d4Ao9hy0nlpAv495l6_ClCwqYqoNs/edit#gid={{ model.sheet_gid }}&range=A{{ model.sheet_row }}"
-               target="_blank" rel="noopener" class="btn btn-secondary btn-sm">Открыть строку ↗</a>
-        </div>
-    </div>
-    {% endif %}
 
     {% if model.specifications %}
     <div class="detail-card full-width">
