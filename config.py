@@ -12,6 +12,13 @@ class Config:
         SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or 'sqlite:///tv_models.db'
 
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        'pool_pre_ping': True,
+        'pool_recycle': 300,
+        'pool_size': 5,
+        'max_overflow': 2,
+    }
+
     REMEMBER_COOKIE_DURATION = 60 * 60 * 24 * 30  # 30 дней
     REMEMBER_COOKIE_SECURE = False
     REMEMBER_COOKIE_HTTPONLY = True
