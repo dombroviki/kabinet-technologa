@@ -1,5 +1,5 @@
 #define MyAppName "Кабинет технолога"
-#define MyAppVersion "1.4.0"
+#define MyAppVersion "1.4.1"
 #define MyAppPublisher "Horizont"
 #define MyAppExeName "КабинетТехнолога.exe"
 #define MyAppDir "КабинетТехнолога"

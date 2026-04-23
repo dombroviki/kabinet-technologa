@@ -204,25 +204,7 @@ html.light-theme #searchOverlay {
 }
 
 /* ── Search overlay: dim everything except the search form ── */
-#searchOverlay {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.55);
-    z-index: 10500;
-    animation: fadeIn 0.15s ease;
-}
-#searchOverlay.active { display: block; }
-body.search-focused #globalSearchForm { z-index: 10600 !important; }
-body.search-focused .logo,
-body.search-focused .nav-links,
-body.search-focused #sidebarBurgerBtn {
-    opacity: 0.15;
-    pointer-events: none;
-    transition: opacity 0.15s;
-}
-.logo, .nav-links, #sidebarBurgerBtn { transition: opacity 0.15s; }
-@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+#searchOverlay { display: none; }
 html.light-theme .view-toggle {
     background: var(--surface);
     border: 1px solid var(--border);

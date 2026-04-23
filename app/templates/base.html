@@ -535,43 +535,9 @@
         // Overlay при фокусе на поиск
         (function() {
             var inp = document.getElementById('globalSearchInput');
-            var overlay = document.getElementById('searchOverlay');
             if (!inp) return;
-
-            function openSearch() {
-                if (overlay) overlay.classList.add('active');
-                document.body.classList.add('search-focused');
-                inp.focus();
-                inp.select();
-            }
-            function closeSearch() {
-                if (overlay) overlay.classList.remove('active');
-                document.body.classList.remove('search-focused');
-                inp.blur();
-            }
-
-            inp.addEventListener('focus', function() {
-                if (overlay) overlay.classList.add('active');
-                document.body.classList.add('search-focused');
-            });
-
-            // Клик на overlay — закрыть
-            if (overlay) {
-                overlay.addEventListener('click', function() { closeSearch(); });
-            }
-
-            // Клик вне формы — закрыть
-            document.addEventListener('click', function(e) {
-                if (!document.body.classList.contains('search-focused')) return;
-                if (!e.target.closest('#globalSearchForm') && !e.target.closest('#searchSuggest') && !e.target.closest('#searchOverlay')) {
-                    closeSearch();
-                }
-            });
-
-            window.openSearchOverlay = openSearch;
-            window.closeSearchOverlay = closeSearch;
-        })();
-
+            function openSearch() { inp.focus(); inp.select(); }
+            function closeSearch() { inp.blur(); }
             window.openSearchOverlay = openSearch;
             window.closeSearchOverlay = closeSearch;
         })();
