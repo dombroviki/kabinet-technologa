@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Outfit:wght@300;400;500;600;700&display=swap');
+/* Fonts loaded via <link> in base.html for better performance */
 
 :root {
     --bg:        #080a14;
@@ -202,6 +202,27 @@ html.light-theme #sidebarOverlay {
 html.light-theme #searchOverlay {
     background: rgba(0,0,0,0.35);
 }
+
+/* ── Search overlay: dim everything except the search form ── */
+#searchOverlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+    z-index: 10500;
+    animation: fadeIn 0.15s ease;
+}
+#searchOverlay.active { display: block; }
+body.search-focused #globalSearchForm { z-index: 10600 !important; }
+body.search-focused .logo,
+body.search-focused .nav-links,
+body.search-focused #sidebarBurgerBtn {
+    opacity: 0.15;
+    pointer-events: none;
+    transition: opacity 0.15s;
+}
+.logo, .nav-links, #sidebarBurgerBtn { transition: opacity 0.15s; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 html.light-theme .view-toggle {
     background: var(--surface);
     border: 1px solid var(--border);
@@ -254,19 +275,14 @@ html::before {
         radial-gradient(ellipse 40% 35% at 70% 15%, rgba(52,211,153,0.10) 0%, transparent 55%);
     pointer-events: none;
     z-index: 0;
-    animation: bg-drift 12s ease-in-out infinite alternate;
+    /* bg-drift removed - was causing constant GPU repaints */
 }
 
-@keyframes bg-drift {
-    0%   { transform: translate(0%, 0%) scale(1); }
-    33%  { transform: translate(3%, 4%) scale(1.04); }
-    66%  { transform: translate(-4%, 2%) scale(0.97); }
-    100% { transform: translate(4%, -3%) scale(1.03); }
-}
+
 
 body > * { position: relative; z-index: 1; }
 
-main { flex: 1; padding: 44px 0 72px; animation: pageIn 0.2s ease both; }
+main { flex: 1; padding: 44px 0 72px; animation: pageIn 0.15s ease both; }
 
 .container { max-width: 1240px; margin: 0 auto; padding: 0 28px; }
 
@@ -386,13 +402,13 @@ h2 {
 .brand-card {
     background: var(--surface); border: 1px solid var(--border); border-radius: 18px;
     overflow: hidden; position: relative;
-    transition: transform 0.35s cubic-bezier(0.34,1.56,0.64,1), border-color 0.25s, box-shadow 0.25s;
-    animation: cardIn 0.5s cubic-bezier(0.22,1,0.36,1) both;
+    transition: transform 0.2s cubic-bezier(0.22,1,0.36,1), border-color 0.2s, box-shadow 0.2s;
+    animation: cardIn 0.25s cubic-bezier(0.22,1,0.36,1) both;
 }
-.brand-card:nth-child(1){animation-delay:.04s} .brand-card:nth-child(2){animation-delay:.08s}
-.brand-card:nth-child(3){animation-delay:.12s} .brand-card:nth-child(4){animation-delay:.16s}
-.brand-card:nth-child(5){animation-delay:.20s} .brand-card:nth-child(6){animation-delay:.24s}
-.brand-card:nth-child(7){animation-delay:.28s}
+.brand-card:nth-child(1){animation-delay:.03s} .brand-card:nth-child(2){animation-delay:.06s}
+.brand-card:nth-child(3){animation-delay:.09s} .brand-card:nth-child(4){animation-delay:.12s}
+.brand-card:nth-child(5){animation-delay:.15s} .brand-card:nth-child(6){animation-delay:.15s}
+.brand-card:nth-child(7){animation-delay:.15s}
 
 .brand-top-bar {
     height: 3px; background: var(--accent-g);
@@ -419,7 +435,7 @@ h2 {
 
 .launcher-card {
     background: var(--surface); border: 1px solid var(--border); border-radius: 16px; overflow: hidden;
-    transition: all 0.2s ease; animation: cardIn 0.2s ease both;
+    transition: transform 0.2s ease, border-color 0.2s, box-shadow 0.2s; animation: cardIn 0.2s ease both;
 }
 .launcher-card:nth-child(1){animation-delay:.05s} .launcher-card:nth-child(2){animation-delay:.10s}
 .launcher-card:nth-child(3){animation-delay:.15s}
@@ -532,7 +548,7 @@ tbody tr:hover { background: rgba(91,141,238,0.05); }
     display: inline-flex; align-items: center; justify-content: center; gap: 6px;
     padding: 9px 18px; border-radius: 10px; font-size: 0.85rem; font-weight: 500;
     font-family: 'Outfit', sans-serif; border: 1px solid transparent; cursor: pointer;
-    text-decoration: none; transition: all 0.22s cubic-bezier(0.34,1.56,0.64,1); white-space: nowrap;
+    text-decoration: none; transition: transform 0.2s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.2s, color 0.15s; white-space: nowrap;
 }
 .btn-primary { background: var(--accent-g); color: white; border: none; box-shadow: 0 4px 16px rgba(91,141,238,0.35); margin-top: 10px; margin-bottom: 10px; }
 .btn-primary:hover { transform: translateY(-2px) scale(1.03); box-shadow: 0 8px 26px rgba(91,141,238,0.55); color: white; }
@@ -547,7 +563,7 @@ button[type="submit"] {
     padding: 12px 26px; background: var(--accent-g); color: white; border: none;
     border-radius: 11px; font-family: 'Outfit', sans-serif; font-size: 0.93rem; font-weight: 600;
     cursor: pointer; box-shadow: 0 5px 18px rgba(91,141,238,0.4);
-    transition: all 0.25s cubic-bezier(0.34,1.56,0.64,1);
+    transition: transform 0.2s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.2s;
 }
 button[type="submit"]:hover { transform: translateY(-2px) scale(1.03); box-shadow: 0 10px 28px rgba(91,141,238,0.58); }
 
@@ -1343,7 +1359,7 @@ tbody tr:hover {
 
 /* ── Кнопки — улучшенный hover ── */
 .btn-primary {
-    transition: all 0.25s cubic-bezier(0.34,1.56,0.64,1);
+    transition: transform 0.2s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.2s;
 }
 .btn-primary:hover {
     transform: translateY(-2px) scale(1.03);
@@ -1360,7 +1376,7 @@ tbody tr:hover {
 
 /* ── Flash badge — прошивается ── */
 .flash-badge {
-    transition: all 0.25s cubic-bezier(0.34,1.56,0.64,1);
+    transition: transform 0.2s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.2s;
 }
 .flash-badge:hover {
     transform: scale(1.08);
@@ -1382,31 +1398,30 @@ tbody tr:hover {
 
 /* ── Плавное появление страниц ── */
 .form-card {
-    animation: cardIn 0.5s cubic-bezier(0.22,1,0.36,1) both;
-}
+    animation: cardIn 0.25s cubic-bezier(0.22,1,0.36,1) both;
 
 /* ── Stagger для brand-card до 20 штук ── */
-.brand-card:nth-child(8){animation-delay:.32s}
-.brand-card:nth-child(9){animation-delay:.36s}
-.brand-card:nth-child(10){animation-delay:.40s}
-.brand-card:nth-child(11){animation-delay:.44s}
-.brand-card:nth-child(12){animation-delay:.48s}
-.brand-card:nth-child(13){animation-delay:.52s}
-.brand-card:nth-child(14){animation-delay:.56s}
-.brand-card:nth-child(15){animation-delay:.60s}
-.brand-card:nth-child(16){animation-delay:.64s}
-.brand-card:nth-child(17){animation-delay:.68s}
-.brand-card:nth-child(18){animation-delay:.72s}
-.brand-card:nth-child(19){animation-delay:.76s}
-.brand-card:nth-child(20){animation-delay:.80s}
+.brand-card:nth-child(8){animation-delay:.15s}
+.brand-card:nth-child(9){animation-delay:.15s}
+.brand-card:nth-child(10){animation-delay:.15s}
+.brand-card:nth-child(11){animation-delay:.15s}
+.brand-card:nth-child(12){animation-delay:.15s}
+.brand-card:nth-child(13){animation-delay:.15s}
+.brand-card:nth-child(14){animation-delay:.15s}
+.brand-card:nth-child(15){animation-delay:.15s}
+.brand-card:nth-child(16){animation-delay:.15s}
+.brand-card:nth-child(17){animation-delay:.15s}
+.brand-card:nth-child(18){animation-delay:.15s}
+.brand-card:nth-child(19){animation-delay:.15s}
+.brand-card:nth-child(20){animation-delay:.15s}
 
 /* ── Stagger для строк таблицы ── */
-tbody tr:nth-child(5){animation-delay:.20s}
-tbody tr:nth-child(6){animation-delay:.24s}
-tbody tr:nth-child(7){animation-delay:.28s}
-tbody tr:nth-child(8){animation-delay:.32s}
-tbody tr:nth-child(9){animation-delay:.36s}
-tbody tr:nth-child(10){animation-delay:.40s}
+tbody tr:nth-child(5){animation-delay:.12s}
+tbody tr:nth-child(6){animation-delay:.12s}
+tbody tr:nth-child(7){animation-delay:.12s}
+tbody tr:nth-child(8){animation-delay:.12s}
+tbody tr:nth-child(9){animation-delay:.12s}
+tbody tr:nth-child(10){animation-delay:.12s}
 
 /* ── Scroll reveal ── */
 .reveal {

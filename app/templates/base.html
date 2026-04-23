@@ -15,8 +15,11 @@
         } catch(e) {}
     })();
     </script>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ range(1000000) | random }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='mobile.css') }}?v={{ range(1000000) | random }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Outfit:wght@300;400;500;600;700&display=swap">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=1.3.1">
+    <link rel="stylesheet" href="{{ url_for('static', filename='mobile.css') }}?v=1.3.1">
     <style>
     #nprogress {
         position: fixed;
@@ -536,29 +539,38 @@
             if (!inp) return;
 
             function openSearch() {
-                if (overlay) overlay.style.display = 'block';
+                if (overlay) overlay.classList.add('active');
                 document.body.classList.add('search-focused');
                 inp.focus();
                 inp.select();
             }
             function closeSearch() {
-                if (overlay) overlay.style.display = 'none';
+                if (overlay) overlay.classList.remove('active');
                 document.body.classList.remove('search-focused');
                 inp.blur();
             }
 
             inp.addEventListener('focus', function() {
-                if (overlay) overlay.style.display = 'block';
+                if (overlay) overlay.classList.add('active');
                 document.body.classList.add('search-focused');
             });
+
+            // Клик на overlay — закрыть
+            if (overlay) {
+                overlay.addEventListener('click', function() { closeSearch(); });
+            }
 
             // Клик вне формы — закрыть
             document.addEventListener('click', function(e) {
                 if (!document.body.classList.contains('search-focused')) return;
-                if (!e.target.closest('#globalSearchForm') && !e.target.closest('#searchSuggest')) {
+                if (!e.target.closest('#globalSearchForm') && !e.target.closest('#searchSuggest') && !e.target.closest('#searchOverlay')) {
                     closeSearch();
                 }
             });
+
+            window.openSearchOverlay = openSearch;
+            window.closeSearchOverlay = closeSearch;
+        })();
 
             window.openSearchOverlay = openSearch;
             window.closeSearchOverlay = closeSearch;

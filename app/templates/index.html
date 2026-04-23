@@ -2,9 +2,22 @@
 {% block content %}
 <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:24px;">
     <h1 style="margin:0;">Бренды телевизоров</h1>
-    <div style="display:flex; gap:8px;">
-        <a href="{{ url_for('export_production') }}" class="btn btn-secondary">⬇ Экспорт xlsx</a>
-        <a href="{{ url_for('import_all') }}" class="btn btn-secondary">⬆ Импорт</a>
+
+</div>
+
+<!-- Прогресс-бар синхронизации -->
+<div id="importProgressBar" style="display:none; margin-bottom:16px;">
+    <div style="background:var(--surface2); border:1px solid var(--border); border-radius:12px; padding:14px 20px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+            <span style="font-size:0.85rem; font-weight:600; color:var(--text);">
+                🔄 Синхронизация с Google Sheets
+            </span>
+            <span id="importProgressPct" style="font-size:0.8rem; font-weight:700; color:var(--accent);">0%</span>
+        </div>
+        <div style="background:var(--border); border-radius:8px; height:6px; overflow:hidden;">
+            <div id="importProgressFill" style="height:100%; width:0%; background:linear-gradient(90deg,#60a5fa,#a78bfa); border-radius:8px; transition:width 0.4s ease;"></div>
+        </div>
+        <div id="importProgressMsg" style="margin-top:8px; font-size:0.78rem; color:var(--muted);">Запускаем...</div>
     </div>
 </div>
 
@@ -240,6 +253,49 @@
 
         poll();
         setInterval(poll, 30000);
+    })();
+
+    // Поллинг прогресса импорта
+    (function() {
+        var bar    = document.getElementById('importProgressBar');
+        var fill   = document.getElementById('importProgressFill');
+        var pct    = document.getElementById('importProgressPct');
+        var msg    = document.getElementById('importProgressMsg');
+        if (!bar) return;
+
+        var wasRunning = false;
+
+        function pollProgress() {
+            fetch('/api/import-progress')
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.running) {
+                        bar.style.display = 'block';
+                        fill.style.width  = data.progress + '%';
+                        pct.textContent   = data.progress + '%';
+                        msg.textContent   = data.msg || '';
+                        wasRunning = true;
+                    } else {
+                        if (wasRunning) {
+                            // Импорт только что завершился — показываем 100% на секунду
+                            fill.style.width = '100%';
+                            pct.textContent  = '100%';
+                            msg.textContent  = data.msg || 'Готово!';
+                            setTimeout(function() {
+                                bar.style.display = 'none';
+                                location.reload();
+                            }, 1500);
+                        } else {
+                            bar.style.display = 'none';
+                        }
+                        wasRunning = false;
+                    }
+                })
+                .catch(function() {});
+        }
+
+        pollProgress();
+        setInterval(pollProgress, 1500);
     })();
 })();
 </script>

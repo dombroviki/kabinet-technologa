@@ -62,7 +62,7 @@ def init_app(app):
     import os
 
     # Состояние импорта
-    _state = {'import_running': False}
+    _state = {'import_running': False, 'progress': 0, 'msg': '', 'total': 0, 'done': 0}
 
     def _get_last_import():
         try:
@@ -618,6 +618,18 @@ def init_app(app):
             return jsonify({'ok': True, 'minutes_ago': minutes})
         return jsonify({'ok': False})
 
+    @app.route('/api/import-progress')
+    @login_required
+    def import_progress():
+        from flask import jsonify
+        return jsonify({
+            'running': _state['import_running'],
+            'progress': _state['progress'],
+            'msg': _state['msg'],
+            'total': _state['total'],
+            'done': _state['done'],
+        })
+
     @app.route('/api/suggest')
     @login_required
     def suggest():
@@ -669,14 +681,14 @@ def init_app(app):
             from google.oauth2.service_account import Credentials
         except ImportError:
             flash('Установите: pip install gspread google-auth', 'error')
-            return redirect(url_for('import_all'))
+            return redirect(url_for('index'))
 
         creds_file = current_app.config.get('SHEETS_CREDENTIALS_FILE')
         sheet_id   = current_app.config.get('SHEETS_SPREADSHEET_ID')
 
         if not creds_file or not os.path.exists(creds_file):
             flash('Файл google_credentials.json не найден в корне проекта', 'error')
-            return redirect(url_for('import_all'))
+            return redirect(url_for('index'))
 
         try:
             scopes = ['https://www.googleapis.com/auth/spreadsheets.readonly']
@@ -685,7 +697,7 @@ def init_app(app):
             wb     = gc.open_by_key(sheet_id)
         except Exception as e:
             flash(f'Ошибка подключения к Google Sheets: {e}', 'error')
-            return redirect(url_for('import_all'))
+            return redirect(url_for('index'))
 
         launcher_name = 'собственный'
         launcher = LauncherType.query.filter_by(name=launcher_name).first()
@@ -970,11 +982,13 @@ def init_app(app):
             with app_obj.app_context():
                 try:
                     db.session.rollback()
+                    _state.update({'progress': 5, 'msg': 'Открываем файл...'})
                     logger.warning('AUTO_IMPORT: opening workbook...')
                     wb = openpyxl.load_workbook(file_bytes, data_only=True, read_only=True)
                     logger.warning(f'AUTO_IMPORT: workbook opened, sheets: {wb.sheetnames[:5]}')
 
                     # Читаем threaded comments напрямую из XML внутри xlsx
+                    _state.update({'progress': 15, 'msg': 'Читаем комментарии...'})
                     logger.warning('AUTO_IMPORT: extracting threaded comments...')
                     comments_from_cells = {}
                     dates_map = {}
@@ -1043,6 +1057,7 @@ def init_app(app):
                         db.session.add(launcher)
                         db.session.flush()
 
+                    _state.update({'progress': 30, 'msg': 'Загружаем кэши...'})
                     logger.warning('AUTO_IMPORT: loading caches...')
                     brand_cache  = {b.name: b for b in Brand.query.all()}
                     remote_cache = {r.name: r for r in RemoteControl.query.all()}
@@ -1072,10 +1087,18 @@ def init_app(app):
                     updates_list = []
                     new_models = []
 
+                    sheets_to_process = [s for s in wb.sheetnames if s not in skip_sheets]
+                    total_sheets = len(sheets_to_process)
+                    _state.update({'progress': 40, 'msg': f'Обрабатываем листы (0/{total_sheets})...', 'total': total_sheets, 'done': 0})
 
-                    for sheet_name in wb.sheetnames:
+                    for sheet_idx, sheet_name in enumerate(wb.sheetnames):
                         if sheet_name in skip_sheets:
                             continue
+                        _state.update({
+                            'progress': 40 + int(50 * sheet_idx / max(total_sheets, 1)),
+                            'msg': f'Лист {sheet_idx+1}/{total_sheets}: {sheet_name}',
+                            'done': sheet_idx,
+                        })
                         logger.warning(f'AUTO_IMPORT: processing sheet {sheet_name}...')
                         brand_name = sheet_name.strip()
                         if brand_name not in brand_cache:
@@ -1191,6 +1214,7 @@ def init_app(app):
                             added += 1
 
                     wb.close()
+                    _state.update({'progress': 90, 'msg': f'Сохраняем {added} новых, {len(updates_list)} обновлений...'})
                     logger.warning(f'AUTO_IMPORT: inserting {added} new, updating {len(updates_list)} changed (skipped {skipped - len(updates_list)} unchanged)...')
 
                     from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -1237,11 +1261,13 @@ def init_app(app):
                                         raise
 
                     logger.warning('AUTO_IMPORT: done!')
+                    _state.update({'progress': 100, 'msg': f'Готово! Добавлено: {added}, обновлено: {len(updates_list)}'})
                     from datetime import datetime, timezone
                     _set_last_import(datetime.now(timezone.utc))
 
                 except Exception as e:
                     db.session.rollback()
+                    _state.update({'progress': 0, 'msg': f'Ошибка: {e}'})
                     logger.error(f'AUTO_IMPORT error: {e}')
 
         if _state['import_running']:
@@ -1249,6 +1275,7 @@ def init_app(app):
 
         def do_import_safe():
             _state['import_running'] = True
+            _state.update({'progress': 0, 'msg': 'Запускаем импорт...'})
             try:
                 do_import()
             finally:
@@ -1257,287 +1284,6 @@ def init_app(app):
         t = threading.Thread(target=do_import_safe, daemon=True)
         t.start()
         return jsonify({'ok': True, 'status': 'processing'})
-    # ── ГЛОБАЛЬНЫЙ ИМПОРТ ──
-    @app.route('/import/all', methods=['GET', 'POST'])
-    @login_required
-    @editor_required
-    def import_all():
-        if request.method == 'POST':
-            import io
-            file = request.files.get('file')
-            if not file or not file.filename:
-                flash('Выберите файл', 'error')
-                return redirect(request.url)
-
-            launcher_name = 'собственный'
-            ext = file.filename.rsplit('.', 1)[-1].lower()
-
-            try:
-                added = skipped = 0
-                BATCH = 100  # коммит каждые 100 записей
-
-                # ── Кэш брендов, пультов, существующих моделей ──
-                brand_cache   = {b.name: b for b in Brand.query.all()}
-                remote_cache  = {r.name: r for r in RemoteControl.query.all()}
-                existing_map  = {
-                    (m.brand_id, m.model, m.lot): m.id
-                    for m in db.session.query(TVModel.brand_id, TVModel.model, TVModel.lot, TVModel.id).all()
-                }
-                existing_set  = set(existing_map.keys())
-
-                launcher = LauncherType.query.filter_by(name=launcher_name).first()
-                if not launcher:
-                    launcher = LauncherType(name=launcher_name)
-                    db.session.add(launcher)
-                    db.session.flush()
-
-                if ext in ('xlsx', 'xls'):
-                    import openpyxl, zipfile as zf_mod
-                    from xml.etree import ElementTree as ET
-                    file_bytes = io.BytesIO(file.read())
-
-                    # Читаем threaded comments через zipfile
-                    tc_comments = {}
-                    tc_dates = {}
-                    sheet_gid_map = {}
-                    try:
-                        TC_NS = 'http://schemas.microsoft.com/office/spreadsheetml/2018/threadedcomments'
-                        WB_NS = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
-                        zf = zf_mod.ZipFile(file_bytes)
-                        wb_xml = ET.fromstring(zf.read('xl/workbook.xml'))
-                        sheet_els = wb_xml.findall(f'.//{{{WB_NS}}}sheet')
-                        sheets_order = [s.get('name') for s in sheet_els]
-                        sheet_gid_map = {s.get('name'): int(s.get('sheetId', 0)) for s in sheet_els}
-                        for i, sname in enumerate(sheets_order, start=1):
-                            rels_path = f'xl/worksheets/_rels/sheet{i}.xml.rels'
-                            if rels_path not in zf.namelist():
-                                continue
-                            rels_xml = ET.fromstring(zf.read(rels_path))
-                            tc_file = None
-                            for r in rels_xml:
-                                if 'threadedComment' in r.get('Type', ''):
-                                    tc_file = 'xl/threadedComments/' + r.get('Target', '').split('/')[-1]
-                                    break
-                            if not tc_file or tc_file not in zf.namelist():
-                                continue
-                            tc_xml = ET.fromstring(zf.read(tc_file))
-                            seen = set()
-                            for tc in tc_xml.findall(f'{{{TC_NS}}}threadedComment'):
-                                if tc.get('parentId'):
-                                    continue
-                                ref = tc.get('ref', '')
-                                col = ''.join(c for c in ref if c.isalpha())
-                                if col != 'J' or ref in seen:
-                                    continue
-                                row_num = int(''.join(c for c in ref if c.isdigit()))
-                                text_el = tc.find(f'{{{TC_NS}}}text')
-                                if text_el is not None and text_el.text:
-                                    tc_comments[(sname, row_num)] = text_el.text.strip()
-                                    seen.add(ref)
-                                dt_str = tc.get('dT', '')
-                                if dt_str:
-                                    try:
-                                        from datetime import datetime
-                                        dt = datetime.fromisoformat(dt_str.rstrip('0').rstrip('.').replace('Z',''))
-                                        tc_dates[(sname, row_num)] = dt
-                                    except Exception:
-                                        pass
-                        zf.close()
-                    except Exception:
-                        pass
-
-                    file_bytes.seek(0)
-                    wb = openpyxl.load_workbook(file_bytes, data_only=True, read_only=True)
-
-                    skip_sheets = {'Требования по качеству'}
-
-                    for sheet_name in wb.sheetnames:
-                        if sheet_name in skip_sheets:
-                            continue
-
-                        brand_name = sheet_name.strip()
-                        if brand_name not in brand_cache:
-                            brand = Brand(name=brand_name)
-                            db.session.add(brand)
-                            db.session.flush()
-                            brand_cache[brand_name] = brand
-                        brand = brand_cache[brand_name]
-
-                        ws = wb[sheet_name]
-                        sheet_gid = sheet_gid_map.get(sheet_name)
-
-                        # Сохраняем цвет вкладки
-                        try:
-                            tab_color = ws.sheet_properties.tabColor
-                            if tab_color and not brand_cache[brand_name].tab_color:
-                                brand_cache[brand_name].tab_color = tab_color.rgb
-                        except Exception:
-                            pass
-
-                        # Определяем индексы колонок по заголовкам строк 3-4
-                        col_tester = 7
-                        col_flash  = 8
-                        col_sw     = 9
-                        col_remote = 10
-                        try:
-                            for hr in ws.iter_rows(min_row=3, max_row=4, values_only=False):
-                                for ci, hc in enumerate(hr):
-                                    v = str(hc.value or '').strip().lower()
-                                    if 'разработчик ртп' in v:
-                                        col_tester = ci
-                                    elif v == 'шьём' or v == 'шьем':
-                                        col_flash = ci
-                                    elif 'версия по' in v or 'версия пo' in v:
-                                        col_sw = ci
-                                    elif v == 'stb':
-                                        col_remote = ci
-                        except Exception:
-                            pass
-
-                        def _cell_str(r, idx):
-                            return str(r[idx].value).strip() if len(r) > idx and r[idx].value else ''
-
-                        for row in ws.iter_rows(min_row=5, values_only=False):
-                            model_name = str(row[0].value).strip() if row[0].value else ''
-                            if not model_name or model_name == 'None':
-                                continue
-                            lot_raw  = row[1].value
-                            lot_cell = row[1]
-                            if isinstance(lot_raw, float):
-                                lot = str(int(lot_raw))
-                            elif hasattr(lot_raw, 'strftime'):
-                                fmt = getattr(lot_cell, 'number_format', '') or ''
-                                if 'd/m' in fmt.lower():
-                                    lot = f"{lot_raw.day}/{lot_raw.month}"
-                                elif 'm/d' in fmt.lower():
-                                    lot = f"{lot_raw.month}/{lot_raw.day}"
-                                else:
-                                    lot = f"{lot_raw.day}/{lot_raw.month}"
-                            else:
-                                lot = str(lot_raw or '').strip()
-                            if not lot or lot == 'None':
-                                continue
-
-                            tester     = _cell_str(row, col_tester)
-                            flashable  = _cell_str(row, col_flash).lower() == 'да'
-                            sw_version = _cell_str(row, col_sw)
-                            remote     = _cell_str(row, col_remote)
-
-                            # Характеристики из threaded comments
-                            sw_comment = ''
-                            try:
-                                row_idx = row[0].row if hasattr(row[0], 'row') else None
-                                if row_idx:
-                                    sw_comment = tc_comments.get((sheet_name, row_idx), '')
-                            except Exception:
-                                pass
-
-                            remote_id = None
-                            if remote:
-                                if remote not in remote_cache:
-                                    rc = RemoteControl(name=remote)
-                                    db.session.add(rc)
-                                    db.session.flush()
-                                    remote_cache[remote] = rc
-                                remote_id = remote_cache[remote].id
-
-                            if (brand.id, model_name, lot) in existing_set:
-                                tv_id = existing_map.get((brand.id, model_name, lot))
-                                if tv_id:
-                                    db.session.query(TVModel).filter_by(id=tv_id).update({
-                                        **(({'software_version': sw_version}) if sw_version else {}),
-                                        **(({'specifications': sw_comment}) if sw_comment else {}),
-                                        **(({'tester_name': tester}) if tester else {}),
-                                        **(({'remote_control_id': remote_id}) if remote_id else {}),
-                                        'is_flashable': flashable,
-                                        **(({'sheet_row': row_idx, 'sheet_gid': sheet_gid}) if row_idx and sheet_gid is not None else {}),
-                                    })
-                                skipped += 1
-                                continue
-
-                            tv = TVModel(
-                                brand_id=brand.id,
-                                launcher_type_id=launcher.id,
-                                model=model_name, lot=lot,
-                                remote_control_id=remote_id,
-                                software_version=sw_version or None,
-                                specifications=sw_comment or None,
-                                is_flashable=flashable,
-                                tester_name=tester or None,
-                                tester_id=current_user.id if tester else None,
-                                date_added=tc_dates.get((sheet_name, row_idx)) if row_idx else None,
-                                sheet_row=row_idx,
-                                sheet_gid=sheet_gid,
-                            )
-                            db.session.add(tv)
-                            existing_set.add((brand.id, model_name, lot))
-                            added += 1
-
-                            if added % BATCH == 0:
-                                db.session.commit()
-
-                    wb.close()
-
-                else:
-                    import csv
-                    content_str = file.read().decode('utf-8-sig')
-                    reader = csv.DictReader(io.StringIO(content_str), delimiter=';')
-
-                    for row in reader:
-                        brand_name = row.get('Бренд', '').strip()
-                        model_name = row.get('Модель', '').strip()
-                        lot        = row.get('Лот', '').strip()
-                        if not all([brand_name, model_name, lot]):
-                            skipped += 1
-                            continue
-
-                        if brand_name not in brand_cache:
-                            brand = Brand(name=brand_name)
-                            db.session.add(brand)
-                            db.session.flush()
-                            brand_cache[brand_name] = brand
-                        brand = brand_cache[brand_name]
-
-                        if (brand.id, model_name, lot) in existing_set:
-                            skipped += 1
-                            continue
-
-                        remote_name = row.get('Пульт', '').strip()
-                        remote_id = None
-                        if remote_name:
-                            if remote_name not in remote_cache:
-                                rc = RemoteControl(name=remote_name)
-                                db.session.add(rc)
-                                db.session.flush()
-                                remote_cache[remote_name] = rc
-                            remote_id = remote_cache[remote_name].id
-
-                        tv = TVModel(
-                            brand_id=brand.id, launcher_type_id=launcher.id,
-                            model=model_name, lot=lot,
-                            remote_control_id=remote_id,
-                            software_version=row.get('Версия ПО', '').strip() or None,
-                            is_flashable=row.get('Прошивается', '').strip() == 'Да',
-                            tester_name=row.get('Тестировщик', '').strip() or current_user.name,
-                            tester_id=current_user.id,
-                        )
-                        db.session.add(tv)
-                        existing_set.add((brand.id, model_name, lot))
-                        added += 1
-
-                        if added % BATCH == 0:
-                            db.session.commit()
-
-                db.session.commit()
-                flash(f'Импортировано: {added} моделей, пропущено дублей: {skipped}', 'success')
-            except Exception as e:
-                db.session.rollback()
-                flash(f'Ошибка импорта: {e}', 'error')
-
-            return redirect(url_for('index'))
-
-        return render_template('import_all.html')
-
     # ── ИНЛАЙН РЕДАКТИРОВАНИЕ ──
     @app.route('/api/inline_edit/<int:id>', methods=['POST'])
     @login_required
@@ -1569,134 +1315,6 @@ def init_app(app):
         log_action('inline', model, field=field, old_value=None, new_value=value)
         db.session.commit()
         return jsonify({'ok': True, 'value': getattr(model, field)})
-
-    # ── ГЛОБАЛЬНЫЙ ЭКСПОРТ В XLSX (формат Подготовка производства) ──
-    @app.route('/export/production')
-    @login_required
-    def export_production():
-        import io
-        from flask import Response
-        import openpyxl
-        from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
-        from openpyxl.utils import get_column_letter
-
-        wb = openpyxl.Workbook()
-        wb.remove(wb.active)  # удаляем пустой лист по умолчанию
-
-        brands = Brand.query.order_by(Brand.name).all()
-
-        # Стили заголовков
-        header_font      = Font(name='Calibri', bold=True, size=10)
-        header_fill      = PatternFill('solid', fgColor='D9D9D9')
-        center_align     = Alignment(horizontal='center', vertical='center', wrap_text=True)
-        left_align       = Alignment(horizontal='left', vertical='center', wrap_text=False)
-        thin_border_side = Side(style='thin')
-        thin_border      = Border(
-            left=thin_border_side, right=thin_border_side,
-            top=thin_border_side, bottom=thin_border_side
-        )
-
-        for brand in brands:
-            models = TVModel.query.filter_by(brand_id=brand.id)                .order_by(TVModel.model, TVModel.lot).all()
-            if not models:
-                continue
-
-            ws = wb.create_sheet(title=brand.name[:31])
-
-            # Цвет вкладки
-            if brand.tab_color:
-                ws.sheet_properties.tabColor = brand.tab_color
-
-            # ── Строка 1: заголовок бренда ──
-            ws.merge_cells('A1:L1')
-            ws['A1'] = f'Подготовка производства {brand.name}'
-            ws['A1'].font      = Font(name='Calibri', bold=True, size=12)
-            ws['A1'].alignment = center_align
-
-            # ── Строка 2: пустая ──
-
-            # ── Строка 3: заголовки колонок верхний уровень ──
-            headers_row3 = [
-                'Модель \nтелевизора', 'Лот', 'Слич.вед.', 'SOP',
-                'Номер ТП', 'Разработка ТП по сборке', '', 'Разработчик РТП',
-                'Программное обеспечение', '', '', ''
-            ]
-            for col, val in enumerate(headers_row3, 1):
-                cell = ws.cell(row=3, column=col, value=val)
-                cell.font      = header_font
-                cell.fill      = header_fill
-                cell.alignment = center_align
-                cell.border    = thin_border
-
-            # ── Строка 4: подзаголовки ──
-            headers_row4 = [
-                '', '', '', '', '',
-                'Разработчик', 'Статус', '',
-                'Шьём', 'Версия ПО', 'STB', 'Macros'
-            ]
-            for col, val in enumerate(headers_row4, 1):
-                cell = ws.cell(row=4, column=col, value=val)
-                cell.font      = header_font
-                cell.fill      = header_fill
-                cell.alignment = center_align
-                cell.border    = thin_border
-
-            # Объединяем ячейки в шапке (как в оригинале)
-            for col in [1, 2, 3, 4, 5, 8]:
-                ws.merge_cells(start_row=3, start_column=col, end_row=4, end_column=col)
-            ws.merge_cells(start_row=3, start_column=6, end_row=3, end_column=7)
-            ws.merge_cells(start_row=3, start_column=9, end_row=3, end_column=12)
-
-            # ── Данные с 5-й строки ──
-            data_font = Font(name='Calibri', size=10, bold=True)
-            for tv in models:
-                row_data = [
-                    tv.model,                                    # A: Модель
-                    tv.lot,                                      # B: Лот
-                    'Да',                                        # C: Слич.вед.
-                    'Да',                                        # D: SOP
-                    '',                                          # E: Номер ТП
-                    '',                                          # F: Разработчик
-                    '',                                          # G: Статус
-                    tv.tester_name or '',                        # H: Разработчик РТП
-                    'Да' if tv.is_flashable else 'Нет',          # I: Шьём
-                    tv.software_version or '',                   # J: Версия ПО
-                    tv.remote.name if tv.remote else '',         # K: STB
-                    '',                                          # L: Macros
-                ]
-                ws.append(row_data)
-                last_row = ws.max_row
-                for col in range(1, 13):
-                    cell = ws.cell(row=last_row, column=col)
-                    cell.font      = data_font
-                    cell.alignment = left_align
-                    cell.border    = thin_border
-
-                # Записываем specifications как комментарий в ячейку J (Версия ПО)
-                if tv.specifications:
-                    from openpyxl.comments import Comment
-                    comment = Comment(tv.specifications, tv.tester_name or 'Кабинет технолога')
-                    comment.width  = 300
-                    comment.height = 120
-                    ws.cell(row=last_row, column=10).comment = comment
-
-            # Ширина колонок
-            col_widths = [20, 8, 10, 8, 14, 16, 10, 18, 8, 20, 16, 14]
-            for i, width in enumerate(col_widths, 1):
-                ws.column_dimensions[get_column_letter(i)].width = width
-
-            # Высота строк шапки
-            ws.row_dimensions[3].height = 30
-            ws.row_dimensions[4].height = 20
-
-        output = io.BytesIO()
-        wb.save(output)
-        output.seek(0)
-        from flask import make_response
-        resp = make_response(output.getvalue())
-        resp.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-        resp.headers['Content-Disposition'] = 'attachment; filename="production_export.xlsx"'
-        return resp
 
     # ── ЭКСПОРТ В EXCEL ──
     @app.route('/export/<int:brand_id>/<int:launcher_id>')
