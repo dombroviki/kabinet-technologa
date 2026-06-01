@@ -285,6 +285,7 @@ nav { display: flex; justify-content: space-between; align-items: center; height
     display: flex; align-items: center; gap: 10px;
     text-decoration: none; color: inherit;
     flex-shrink: 0;
+    margin-left: 52px; /* отступ под бургер (fixed left:12px + padding 30px*2) */
 }
 
 .logo-icon {

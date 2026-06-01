@@ -264,6 +264,13 @@
         if (!bar) return;
 
         var wasRunning = false;
+        var pollTimer = null;
+
+        function schedule(running) {
+            clearTimeout(pollTimer);
+            // активный импорт — часто; простой — редко (но чтобы поймать старт)
+            pollTimer = setTimeout(pollProgress, running ? 1500 : 15000);
+        }
 
         function pollProgress() {
             fetch('/api/import-progress')
@@ -275,6 +282,7 @@
                         pct.textContent   = data.progress + '%';
                         msg.textContent   = data.msg || '';
                         wasRunning = true;
+                        schedule(true);
                     } else {
                         if (wasRunning) {
                             // Импорт только что завершился — показываем 100% на секунду
@@ -289,13 +297,13 @@
                             bar.style.display = 'none';
                         }
                         wasRunning = false;
+                        schedule(false);
                     }
                 })
-                .catch(function() {});
+                .catch(function() { schedule(false); });
         }
 
         pollProgress();
-        setInterval(pollProgress, 1500);
     })();
 })();
 </script>

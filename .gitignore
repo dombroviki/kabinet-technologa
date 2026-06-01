@@ -1,6 +1,7 @@
 # Секреты
 google_credentials.json
 .env
+secrets_local.py
 
 # База данных
 instance/

@@ -19,7 +19,7 @@
             <span class="flashable-badge no">✕ Не прошивается</span>
         {% endif %}
     </div>
-    <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+    <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; width:100%;">
         <button id="bookmarkBtn" onclick="toggleBookmark({{ model.id }})"
                 class="btn btn-secondary" style="height:40px; font-size:1.1rem;"
                 title="В избранное">☆</button>
@@ -169,6 +169,7 @@
                     <a href="{{ url_for('download_firmware', fw_id=fw.id) }}"
                        class="btn btn-primary btn-sm">⬇ Скачать</a>
                     <form method="post" action="{{ url_for('delete_firmware', fw_id=fw.id) }}" style="display:inline;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <button type="submit" class="btn btn-danger btn-sm"
                                 onclick="return confirm('Удалить прошивку {{ fw.original_name }}?')">🗑</button>
                     </form>

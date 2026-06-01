@@ -84,13 +84,21 @@ def create_app(config_class=Config):
         # Создаём первого админа если пользователей нет
         from .models import User
         if User.query.count() == 0:
+            import secrets as _secrets_mod
+            from config import _secret
+            admin_email = _secret('DEFAULT_ADMIN_EMAIL', 'doombrovskii@gmail.com')
+            admin_pw = _secret('DEFAULT_ADMIN_PASSWORD')
+            if not admin_pw:
+                admin_pw = _secrets_mod.token_urlsafe(12)
+                print(f'[WARN] Создан админ {admin_email} со СЛУЧАЙНЫМ паролем: {admin_pw}')
+                print('[WARN] Смени его после входа или задай DEFAULT_ADMIN_PASSWORD.')
             admin = User(
-                email='doombrovskii@gmail.com',
+                email=admin_email,
                 name='Домбровский Г.И.',
                 role='admin',
                 is_active_user=True
             )
-            admin.set_password('horizonttest9')
+            admin.set_password(admin_pw)
             db.session.add(admin)
             db.session.commit()
 

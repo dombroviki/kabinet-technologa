@@ -1021,30 +1021,43 @@ def init_app(app):
                             if not tc_file or tc_file not in zf.namelist():
                                 continue
                             tc_xml = ET.fromstring(zf.read(tc_file))
-                            seen_refs = set()
+                            # На одну ячейку J берём САМЫЙ СВЕЖИЙ корневой коммент.
+                            # Раньше брался первый (seen_refs) — обновлённая спека
+                            # новым комментом не подтягивалась.
+                            cell_latest = {}  # (sname,row) -> (dt|None, text)
                             for tc in tc_xml.findall(f'{{{TC_NS}}}threadedComment'):
                                 if tc.get('parentId'):
-                                    continue
+                                    continue  # это ответ в треде
                                 ref = tc.get('ref', '')
                                 col = ''.join(c for c in ref if c.isalpha())
                                 if col != 'J':
                                     continue
-                                if ref in seen_refs:
+                                text_el = tc.find(f'{{{TC_NS}}}text')
+                                if text_el is None or not text_el.text:
                                     continue
                                 row = int(''.join(c for c in ref if c.isdigit()))
-                                text_el = tc.find(f'{{{TC_NS}}}text')
-                                if text_el is not None and text_el.text:
-                                    comments_from_cells[(sname, row)] = text_el.text.strip()
-                                    seen_refs.add(ref)
-                                # Дата из dT атрибута
+                                text = text_el.text.strip()
+                                dt = None
                                 dt_str = tc.get('dT', '')
                                 if dt_str:
                                     try:
                                         from datetime import datetime
-                                        dt = datetime.fromisoformat(dt_str.rstrip('0').rstrip('.').replace('Z',''))
-                                        dates_map[(sname, row)] = dt
+                                        dt = datetime.fromisoformat(dt_str.rstrip('0').rstrip('.').replace('Z', ''))
                                     except Exception:
-                                        pass
+                                        dt = None
+                                key = (sname, row)
+                                prev = cell_latest.get(key)
+                                # Свежий по дате побеждает; без даты — последний по порядку
+                                if prev is None:
+                                    cell_latest[key] = (dt, text)
+                                elif dt is not None and (prev[0] is None or dt >= prev[0]):
+                                    cell_latest[key] = (dt, text)
+                                elif dt is None and prev[0] is None:
+                                    cell_latest[key] = (dt, text)
+                            for key, (dt, text) in cell_latest.items():
+                                comments_from_cells[key] = text
+                                if dt is not None:
+                                    dates_map[key] = dt
                         zf.close()
                         logger.warning(f'AUTO_IMPORT: found {len(comments_from_cells)} threaded comments')
                     except Exception as ce:

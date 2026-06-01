@@ -1,15 +1,36 @@
 import os
 
+# Секреты: env (Render dashboard + локальный .env) → secrets_local (бандлится в exe)
+# → дефолт. secrets_local.py в .gitignore и в публичный репо не попадает.
+try:
+    import secrets_local as _local
+except ImportError:
+    _local = None
+
+
+def _secret(name, default=None):
+    val = os.environ.get(name)
+    if val:
+        return val
+    if _local is not None:
+        val = getattr(_local, name, None)
+        if val:
+            return val
+    return default
+
+
 # Определяем режим — десктоп (exe) или сервер (Render)
 _IS_DESKTOP = not os.environ.get('RENDER')
 
 class Config:
-    SECRET_KEY = os.environ.get('SECRET_KEY') or 'my-super-secret-key-2026'
+    # Если ключ нигде не задан — генерим временный (сессии слетят при рестарте)
+    SECRET_KEY = _secret('SECRET_KEY')
+    if not SECRET_KEY:
+        import secrets as _secrets_mod
+        SECRET_KEY = _secrets_mod.token_hex(32)
+        print('[WARN] SECRET_KEY не задан — использую временный. Задай env SECRET_KEY на проде!')
 
-    if _IS_DESKTOP:
-        SQLALCHEMY_DATABASE_URI = 'postgresql://neondb_owner:npg_tfQL4y5oeUub@ep-crimson-wave-alms31ub.c-3.eu-central-1.aws.neon.tech/neondb?sslmode=require'
-    else:
-        SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or 'sqlite:///tv_models.db'
+    SQLALCHEMY_DATABASE_URI = _secret('DATABASE_URL', 'sqlite:///tv_models.db')
 
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ENGINE_OPTIONS = {
@@ -37,12 +58,15 @@ class Config:
     ALLOWED_EXTENSIONS_PHOTO = {'png', 'jpg', 'jpeg', 'gif'}
     ALLOWED_EXTENSIONS_FIRMWARE = {'bin', 'zip', 'img', 'hex'}
 
-    GOOGLE_CLIENT_ID     = os.environ.get('GOOGLE_CLIENT_ID', '')
-    GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET', '')
+    GOOGLE_CLIENT_ID     = _secret('GOOGLE_CLIENT_ID', '')
+    GOOGLE_CLIENT_SECRET = _secret('GOOGLE_CLIENT_SECRET', '')
 
-    IMPORT_SECRET = os.environ.get('IMPORT_SECRET', 'QAR2nlYrAWHG2RMie94M5Qj-fP5M-7VaADwWX4E_HEE')
+    # Пусто по умолчанию — авто-импорт отключён, пока секрет не задан (fail-safe,
+    # вместо известного на весь интернет токена)
+    IMPORT_SECRET = _secret('IMPORT_SECRET', '')
 
     SHEETS_CREDENTIALS_FILE = os.environ.get('SHEETS_CREDENTIALS_FILE') or \
         os.path.join(BASE_DIR, 'google_credentials.json')
-    SHEETS_SPREADSHEET_ID = os.environ.get('SHEETS_SPREADSHEET_ID',
+    # ID таблицы — не секрет, оставляем
+    SHEETS_SPREADSHEET_ID = _secret('SHEETS_SPREADSHEET_ID',
         '1rOj9tEkL_mFNV7d4Ao9hy0nlpAv495l6_ClCwqYqoNs')

@@ -13,6 +13,20 @@ header {
     box-shadow: 0 2px 16px rgba(0,0,0,0.4);
 }
 
+/* Плавающая боковая кнопка ☰ налезала на логотип в 54px-шапке.
+   На мобильном прячем — навигация, тема и избранное живут в бургер-меню справа. */
+#sidebarBurgerBtn { display: none !important; }
+
+/* Кнопка переключения темы внутри мобильного меню (это <button>, не <a>) */
+.mob-menu-theme {
+    background: none;
+    border: none;
+    width: 100%;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 0.95rem;
+}
+
 nav {
     height: 54px !important;
     padding: 0 !important;

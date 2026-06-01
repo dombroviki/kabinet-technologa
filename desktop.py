@@ -353,5 +353,22 @@ if __name__ == '__main__':
     webview_window.events.closing += on_closing
     threading.Thread(target=start_tray, daemon=True).start()
 
-    webview.start(storage_path=os.path.join(os.path.expanduser('~'), '.kabinet_technologa'))
+    storage = os.path.join(os.path.expanduser('~'), '.kabinet_technologa')
+    try:
+        # Принудительно EdgeChromium (WebView2). Без явного движка pywebview молча
+        # откатывается на IE/MSHTML, который не понимает CSS-переменные → стили слетают.
+        webview.start(gui='edgechromium', storage_path=storage)
+    except Exception as e:
+        import tkinter.messagebox as mb
+        _r = tk.Tk()
+        _r.withdraw()
+        mb.showerror(
+            'Кабинет технолога',
+            'Не найден компонент Microsoft Edge WebView2 Runtime.\n'
+            'Установите его и запустите приложение снова:\n'
+            'https://go.microsoft.com/fwlink/p/?LinkId=2124703\n\n'
+            f'({e})'
+        )
+        _r.destroy()
+        os._exit(1)
 

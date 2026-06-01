@@ -19,6 +19,7 @@ a = Analysis(
     binaries=[],
     datas=added_files,
     hiddenimports=[
+        'secrets_local',
         'webview',
         'webview.platforms.winforms',
         'clr',
