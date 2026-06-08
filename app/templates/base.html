@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Кабинет технолога</title>
     <script>
     // Применяем тему ДО рендера — предотвращает мигание
@@ -18,8 +18,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Outfit:wght@300;400;500;600;700&display=swap">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=1.5.0">
-    <link rel="stylesheet" href="{{ url_for('static', filename='mobile.css') }}?v=1.5.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=1.6.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='mobile.css') }}?v=1.6.0">
     <style>
     #nprogress {
         position: fixed;
@@ -729,6 +729,16 @@
     });
 
     startAnim();
+})();
+</script>
+
+<script>
+/* iOS Safari игнорирует user-scalable=no, поэтому жест pinch-zoom глушим вручную —
+   чтобы интерфейс ощущался цельным приложением, а не зумящейся веб-страницей. */
+(function () {
+    ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (ev) {
+        document.addEventListener(ev, function (e) { e.preventDefault(); }, { passive: false });
+    });
 })();
 </script>
 

@@ -987,6 +987,21 @@ def init_app(app):
                     wb = openpyxl.load_workbook(file_bytes, data_only=True, read_only=True)
                     logger.warning(f'AUTO_IMPORT: workbook opened, sheets: {wb.sheetnames[:5]}')
 
+                    # Буква колонки "Версия ПО" своя у каждого листа:
+                    # у большинства брендов J, у Noname — L, у General Electronics — K.
+                    # Определяем её по заголовку, а не хардкодим.
+                    from openpyxl.utils import get_column_letter
+                    def _sw_col_letter(sname):
+                        try:
+                            for hr in wb[sname].iter_rows(min_row=3, max_row=4, values_only=True):
+                                for ci, val in enumerate(hr):
+                                    v = str(val or '').strip().lower()
+                                    if 'версия по' in v or 'версия пo' in v:
+                                        return get_column_letter(ci + 1)
+                        except Exception:
+                            pass
+                        return 'J'
+
                     # Читаем threaded comments напрямую из XML внутри xlsx
                     _state.update({'progress': 15, 'msg': 'Читаем комментарии...'})
                     logger.warning('AUTO_IMPORT: extracting threaded comments...')
@@ -1021,7 +1036,9 @@ def init_app(app):
                             if not tc_file or tc_file not in zf.namelist():
                                 continue
                             tc_xml = ET.fromstring(zf.read(tc_file))
-                            # На одну ячейку J берём САМЫЙ СВЕЖИЙ корневой коммент.
+                            # Комменты берём из колонки "Версия ПО" этого листа (J/K/L/…)
+                            target_col = _sw_col_letter(sname)
+                            # На одну ячейку берём САМЫЙ СВЕЖИЙ корневой коммент.
                             # Раньше брался первый (seen_refs) — обновлённая спека
                             # новым комментом не подтягивалась.
                             cell_latest = {}  # (sname,row) -> (dt|None, text)
@@ -1030,7 +1047,7 @@ def init_app(app):
                                     continue  # это ответ в треде
                                 ref = tc.get('ref', '')
                                 col = ''.join(c for c in ref if c.isalpha())
-                                if col != 'J':
+                                if col != target_col:
                                     continue
                                 text_el = tc.find(f'{{{TC_NS}}}text')
                                 if text_el is None or not text_el.text:

@@ -3,6 +3,16 @@
    Breakpoint: 768px
    ════════════════════════════════════════ */
 
+/* Масштаб держим 1:1. Без этого мобильный браузер уменьшает страницу целиком,
+   чтобы она влезла, из-за чего шрифты выглядят «ужатыми». iOS-pinch добивается
+   в base.html. Применяется на всех ширинах — намеренно вне media query. */
+html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    touch-action: pan-x pan-y; /* запрет pinch-zoom и зума по двойному тапу */
+}
+* { -webkit-tap-highlight-color: transparent; }
+
 @media (max-width: 768px) {
 
 /* ── HEADER ── */

@@ -46,11 +46,11 @@ def create_user():
             role = 'user'
 
         if not email or not name:
-            flash('Заполните email и имя', 'error')
+            flash('Заполните логин и имя', 'error')
             return render_template('admin/user_form.html', action='create')
 
         if User.query.filter_by(email=email).first():
-            flash('Пользователь с таким email уже существует', 'error')
+            flash('Пользователь с таким логином уже существует', 'error')
             return render_template('admin/user_form.html', action='create')
 
         user = User(email=email, name=name, role=role)

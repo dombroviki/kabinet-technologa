@@ -27,11 +27,11 @@
         </div>
 
         <div class="form-group">
-            <label for="email">Email *</label>
+            <label for="email">Логин *</label>
             <input type="text" id="email" name="email"
                    value="{{ user.email if user else '' }}"
-                   placeholder="user@example.com" required
-                   autocomplete="off">
+                   placeholder="например, ivanov" required
+                   autocomplete="off" autocapitalize="none" spellcheck="false">
         </div>
 
         <div class="form-row">

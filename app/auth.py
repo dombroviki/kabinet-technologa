@@ -25,7 +25,7 @@ def login():
         user = User.query.filter_by(email=email).first()
 
         if not user or not user.check_password(password):
-            flash('Неверный email или пароль', 'error')
+            flash('Неверный логин или пароль', 'error')
             return render_template('auth/login.html')
 
         if not user.is_active_user:
