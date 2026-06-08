@@ -15,6 +15,10 @@ OutputDir=dist\installer
 OutputBaseFilename=КабинетТехнолога_setup_{#MyAppVersion}
 Compression=lzma2
 SolidCompression=yes
+; ISCC.exe 32-битный → lzma2+solid на крупной PyInstaller-сборке упирается
+; в потолок адресного пространства ("Out of memory"). Гоним LZMA отдельным
+; 64-битным процессом — лимит снимается, сжатие остаётся прежним.
+LZMAUseSeparateProcess=yes
 WizardStyle=modern
 UninstallDisplayIcon={app}\{#MyAppExeName}
 PrivilegesRequired=lowest
