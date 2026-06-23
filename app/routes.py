@@ -64,16 +64,32 @@ def init_app(app):
     # Состояние импорта
     _state = {'import_running': False, 'progress': 0, 'msg': '', 'total': 0, 'done': 0}
 
+    # Кэш времени последнего импорта. /api/import-status поллится клиентами
+    # каждые 30 сек — без кэша это запрос к БД каждые 30 сек, и Neon никогда
+    # не уходит в scale-to-zero (засыпает только после 5 мин без запросов).
+    import time as _time
+    _LAST_IMPORT_TTL = 1800  # сек: читаем БД не чаще раза в 30 мин
+    _last_import_cache = {'value': None, 'ts': 0.0, 'fetched': False}
+
     def _get_last_import():
+        # Отдаём из кэша, пока не истёк TTL — убирает запрос к БД на каждый
+        # поллинг открытых клиентов, чтобы Neon мог уснуть в простое.
+        if _last_import_cache['fetched'] and \
+                (_time.time() - _last_import_cache['ts']) < _LAST_IMPORT_TTL:
+            return _last_import_cache['value']
+        value = None
         try:
             from .models import AppSetting
             from datetime import datetime, timezone
             s = AppSetting.query.get('last_import_time')
             if s and s.value:
-                return datetime.fromtimestamp(float(s.value), tz=timezone.utc)
+                value = datetime.fromtimestamp(float(s.value), tz=timezone.utc)
         except Exception:
             pass
-        return None
+        _last_import_cache['value'] = value
+        _last_import_cache['ts'] = _time.time()
+        _last_import_cache['fetched'] = True
+        return value
 
     def _set_last_import(dt):
         try:
@@ -85,6 +101,10 @@ def init_app(app):
                 s = AppSetting(key='last_import_time', value=str(dt.timestamp()))
                 db.session.add(s)
             db.session.commit()
+            # Обновляем кэш сразу — инстанс, где прошёл импорт, показывает свежее
+            _last_import_cache['value'] = dt
+            _last_import_cache['ts'] = _time.time()
+            _last_import_cache['fetched'] = True
         except Exception:
             pass
 
@@ -987,21 +1007,6 @@ def init_app(app):
                     wb = openpyxl.load_workbook(file_bytes, data_only=True, read_only=True)
                     logger.warning(f'AUTO_IMPORT: workbook opened, sheets: {wb.sheetnames[:5]}')
 
-                    # Буква колонки "Версия ПО" своя у каждого листа:
-                    # у большинства брендов J, у Noname — L, у General Electronics — K.
-                    # Определяем её по заголовку, а не хардкодим.
-                    from openpyxl.utils import get_column_letter
-                    def _sw_col_letter(sname):
-                        try:
-                            for hr in wb[sname].iter_rows(min_row=3, max_row=4, values_only=True):
-                                for ci, val in enumerate(hr):
-                                    v = str(val or '').strip().lower()
-                                    if 'версия по' in v or 'версия пo' in v:
-                                        return get_column_letter(ci + 1)
-                        except Exception:
-                            pass
-                        return 'J'
-
                     # Читаем threaded comments напрямую из XML внутри xlsx
                     _state.update({'progress': 15, 'msg': 'Читаем комментарии...'})
                     logger.warning('AUTO_IMPORT: extracting threaded comments...')
@@ -1036,9 +1041,7 @@ def init_app(app):
                             if not tc_file or tc_file not in zf.namelist():
                                 continue
                             tc_xml = ET.fromstring(zf.read(tc_file))
-                            # Комменты берём из колонки "Версия ПО" этого листа (J/K/L/…)
-                            target_col = _sw_col_letter(sname)
-                            # На одну ячейку берём САМЫЙ СВЕЖИЙ корневой коммент.
+                            # На одну ячейку J берём САМЫЙ СВЕЖИЙ корневой коммент.
                             # Раньше брался первый (seen_refs) — обновлённая спека
                             # новым комментом не подтягивалась.
                             cell_latest = {}  # (sname,row) -> (dt|None, text)
@@ -1047,7 +1050,7 @@ def init_app(app):
                                     continue  # это ответ в треде
                                 ref = tc.get('ref', '')
                                 col = ''.join(c for c in ref if c.isalpha())
-                                if col != target_col:
+                                if col != 'J':
                                     continue
                                 text_el = tc.find(f'{{{TC_NS}}}text')
                                 if text_el is None or not text_el.text:
