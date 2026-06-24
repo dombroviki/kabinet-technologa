@@ -78,29 +78,37 @@ def create_app(config_class=Config):
             db.session.rollback()
         db.session.remove()
 
-    # Создаём таблицы если их нет
-    with app.app_context():
-        db.create_all()
-        # Создаём первого админа если пользователей нет
-        from .models import User
-        if User.query.count() == 0:
-            import secrets as _secrets_mod
-            from config import _secret
-            admin_email = _secret('DEFAULT_ADMIN_EMAIL', 'doombrovskii@gmail.com')
-            admin_pw = _secret('DEFAULT_ADMIN_PASSWORD')
-            if not admin_pw:
-                admin_pw = _secrets_mod.token_urlsafe(12)
-                print(f'[WARN] Создан админ {admin_email} со СЛУЧАЙНЫМ паролем: {admin_pw}')
-                print('[WARN] Смени его после входа или задай DEFAULT_ADMIN_PASSWORD.')
-            admin = User(
-                email=admin_email,
-                name='Домбровский Г.И.',
-                role='admin',
-                is_active_user=True
-            )
-            admin.set_password(admin_pw)
-            db.session.add(admin)
-            db.session.commit()
+    # Создаём таблицы если их нет.
+    # На десктопе пропускаем (KT_SKIP_DB_INIT) — таблицы уже есть в проде, а
+    # create_all на каждом старте лишний раз будит Neon. И оборачиваем в try:
+    # если БД недоступна (квота/обрыв) — приложение всё равно поднимается и
+    # отдаёт страницу offline вместо краша с трейсбеком.
+    if not os.environ.get('KT_SKIP_DB_INIT'):
+        try:
+            with app.app_context():
+                db.create_all()
+                # Создаём первого админа если пользователей нет
+                from .models import User
+                if User.query.count() == 0:
+                    import secrets as _secrets_mod
+                    from config import _secret
+                    admin_email = _secret('DEFAULT_ADMIN_EMAIL', 'doombrovskii@gmail.com')
+                    admin_pw = _secret('DEFAULT_ADMIN_PASSWORD')
+                    if not admin_pw:
+                        admin_pw = _secrets_mod.token_urlsafe(12)
+                        print(f'[WARN] Создан админ {admin_email} со СЛУЧАЙНЫМ паролем: {admin_pw}')
+                        print('[WARN] Смени его после входа или задай DEFAULT_ADMIN_PASSWORD.')
+                    admin = User(
+                        email=admin_email,
+                        name='Домбровский Г.И.',
+                        role='admin',
+                        is_active_user=True
+                    )
+                    admin.set_password(admin_pw)
+                    db.session.add(admin)
+                    db.session.commit()
+        except Exception as _e:
+            print(f'[WARN] Инициализация БД пропущена (БД недоступна?): {_e}')
 
     # ── Страницы ошибок ──
     @app.errorhandler(404)

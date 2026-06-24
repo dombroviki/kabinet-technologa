@@ -243,6 +243,7 @@
         }
 
         function poll() {
+            if (document.hidden) return;            // окно в трее/свёрнуто — не дёргаем сервер
             fetch('/api/import-status')
                 .then(function(r) { return r.json(); })
                 .then(function(data) {
@@ -252,7 +253,10 @@
         }
 
         poll();
-        setInterval(poll, 30000);
+        setInterval(poll, 60000);
+        document.addEventListener('visibilitychange', function() {
+            if (!document.hidden) poll();           // вернули окно — обновим сразу
+        });
     })();
 
     // Поллинг прогресса импорта
@@ -273,6 +277,7 @@
         }
 
         function pollProgress() {
+            if (document.hidden) { schedule(false); return; }   // в трее — не поллим, но таймер живой
             fetch('/api/import-progress')
                 .then(function(r) { return r.json(); })
                 .then(function(data) {
