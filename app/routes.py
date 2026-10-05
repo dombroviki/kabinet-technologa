@@ -1,8 +1,8 @@
-from flask import render_template, redirect, url_for, request, flash, current_app, send_from_directory
+from flask import render_template, redirect, url_for, request, flash, current_app
 from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
 import os
-from . import db, csrf
+from . import db, csrf, storage
 from .models import TVModel, TVModelPhoto, TVModelFirmware, Brand, LauncherType, User, RemoteControl, Tag, AuditLog, ModelComment
 from datetime import datetime
 
@@ -18,17 +18,12 @@ def save_file(file, folder, allowed_extensions):
         name, ext = os.path.splitext(original_name)
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S%f')
         filename = f"{name}_{timestamp}{ext}"
-        filepath = os.path.join(current_app.config['UPLOAD_FOLDER'], folder, filename)
-        os.makedirs(os.path.dirname(filepath), exist_ok=True)
-        file.save(filepath)
+        storage.save(file, folder, filename)
         return filename
     return None
 
 def delete_file(filename, folder):
-    if filename:
-        filepath = os.path.join(current_app.config['UPLOAD_FOLDER'], folder, filename)
-        if os.path.exists(filepath):
-            os.remove(filepath)
+    storage.delete(folder, filename)
 
 def log_action(action, tv_model, field=None, old_value=None, new_value=None):
     """Записывает действие в журнал изменений"""
@@ -569,10 +564,8 @@ def init_app(app):
     def download_file(id, file_type):
         model = TVModel.query.get_or_404(id)
         if file_type == 'firmware' and model.firmware_filename:
-            return send_from_directory(
-                os.path.join(current_app.config['UPLOAD_FOLDER'], 'firmware'),
-                model.firmware_filename, as_attachment=True,
-                download_name=model.firmware_filename)
+            return storage.send('firmware', model.firmware_filename, as_attachment=True,
+                                download_name=model.firmware_filename)
         flash('Файл не найден', 'error')
         return redirect(url_for('view_model', id=id))
 
@@ -580,10 +573,8 @@ def init_app(app):
     @login_required
     def download_firmware(fw_id):
         fw = TVModelFirmware.query.get_or_404(fw_id)
-        return send_from_directory(
-            os.path.join(current_app.config['UPLOAD_FOLDER'], 'firmware'),
-            fw.filename, as_attachment=True,
-            download_name=fw.original_name)
+        return storage.send('firmware', fw.filename, as_attachment=True,
+                            download_name=fw.original_name)
 
     @app.route('/delete_firmware/<int:fw_id>', methods=['POST'])
     @login_required
@@ -896,9 +887,15 @@ def init_app(app):
     @login_required
     def download_photo(photo_id):
         photo = TVModelPhoto.query.get_or_404(photo_id)
-        return send_from_directory(
-            os.path.join(current_app.config['UPLOAD_FOLDER'], 'photos'),
-            photo.filename, as_attachment=True, download_name=photo.filename)
+        return storage.send('photos', photo.filename, as_attachment=True,
+                            download_name=photo.filename)
+
+    @app.route('/photo/<int:photo_id>')
+    @login_required
+    def photo_view(photo_id):
+        # Показ фото в <img>. Раньше фото отдавались из /static без логина.
+        photo = TVModelPhoto.query.get_or_404(photo_id)
+        return storage.send('photos', photo.filename)
 
     # ── ГЛОБАЛЬНЫЙ ЭКСПОРТ ВСЕГО ──
     @app.route('/export/all')

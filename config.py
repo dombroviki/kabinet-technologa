@@ -47,7 +47,19 @@ class Config:
     SESSION_COOKIE_SECURE = _ON_RENDER
 
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-    UPLOAD_FOLDER = os.path.join(BASE_DIR, 'app', 'static', 'uploads')
+    # Локальная папка загрузок — только если бакет не задан (см. app/storage.py).
+    # Вне app/static: иначе Flask раздавал бы файлы по /static/uploads/ без логина.
+    UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
+    # Где лежали загрузки до переноса (для upload_local_files.py)
+    LEGACY_UPLOAD_FOLDER = os.path.join(BASE_DIR, 'app', 'static', 'uploads')
+
+    # S3-совместимый бакет для фото и прошивок (Cloudflare R2 / Backblaze B2 / AWS S3).
+    # Для R2: S3_ENDPOINT_URL=https://<account_id>.r2.cloudflarestorage.com, S3_REGION=auto
+    S3_BUCKET       = _secret('S3_BUCKET', '')
+    S3_ENDPOINT_URL = _secret('S3_ENDPOINT_URL', '')
+    S3_ACCESS_KEY   = _secret('S3_ACCESS_KEY', '')
+    S3_SECRET_KEY   = _secret('S3_SECRET_KEY', '')
+    S3_REGION       = _secret('S3_REGION', 'auto')
     MAX_CONTENT_LENGTH = 2 * 1024 * 1024 * 1024
 
     ALLOWED_EXTENSIONS_PHOTO = {'png', 'jpg', 'jpeg', 'gif'}

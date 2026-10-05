@@ -134,7 +134,7 @@
         <div class="detail-label">Фото ({{ model.photos|length }})</div>
         <div class="photo-gallery">
             {% for photo in model.photos %}
-            {% set photo_url = url_for('static', filename='uploads/photos/' + photo.filename) %}
+            {% set photo_url = url_for('photo_view', photo_id=photo.id) %}
             <div class="photo-thumb">
                 <img src="{{ photo_url }}"
                      loading="lazy"

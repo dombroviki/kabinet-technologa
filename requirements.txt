@@ -1,18 +1,41 @@
+# Все версии зафиксированы: Render ставит пакеты заново при каждом изменении
+# этого файла, и «плавающая» версия может уронить деплой (так было со SQLAlchemy 2.1).
+# Обновлять осознанно: поменять версию → прогнать локально → пушить.
+
+# ── Веб ──
 Flask==2.3.3
+Werkzeug==2.3.7
+Jinja2==3.1.6
+MarkupSafe==3.0.4
+itsdangerous==2.2.0
+click==8.5.0
+blinker==1.9.0
+Flask-Login==0.6.3
+Flask-WTF==1.2.1
+WTForms==3.2.2
+Flask-Compress==1.15
+gunicorn==21.2.0
+python-dotenv==1.0.0
+requests==2.31.0
+
+# ── БД (Neon / Postgres) ──
 Flask-SQLAlchemy==3.1.1
 # 2.1 по умолчанию ведёт postgresql:// на psycopg 3 (его у нас нет) → краш на старте
 SQLAlchemy==2.0.50
-Flask-Login==0.6.3
-Flask-WTF==1.2.1
-Flask-Compress==1.15
-python-dotenv==1.0.0
-gunicorn==21.2.0
-Werkzeug==2.3.7
-requests==2.31.0
-authlib==1.3.0
+greenlet==3.5.6
+psycopg2-binary==2.9.12
+
+# ── Импорт из Google Sheets / xlsx ──
 openpyxl==3.1.2
 gspread==6.1.2
 google-auth==2.29.0
 google-api-python-client==2.193.0
-psycopg2-binary==2.9.12
-cryptography
+
+# ── Хранилище файлов (S3 / Cloudflare R2), см. app/storage.py ──
+boto3==1.43.108
+botocore==1.43.108
+s3transfer==0.19.2
+
+# ── Прочее ──
+authlib==1.3.0
+cryptography==50.0.2

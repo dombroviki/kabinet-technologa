@@ -119,7 +119,7 @@
                 {% for photo in model.photos %}
                 <label class="photo-delete-wrap">
                     <input type="checkbox" name="delete_photos" value="{{ photo.id }}">
-                    <img src="{{ url_for('static', filename='uploads/photos/' + photo.filename) }}" alt="фото">
+                    <img src="{{ url_for('photo_view', photo_id=photo.id) }}" alt="фото">
                     <div class="photo-delete-badge">🗑</div>
                     <div class="photo-delete-label">Удалить</div>
                 </label>

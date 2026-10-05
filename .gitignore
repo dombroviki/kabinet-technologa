@@ -9,6 +9,7 @@ instance/
 
 # Загруженные файлы (фото и прошивки)
 app/static/uploads/
+uploads/
 
 # Python мусор
 __pycache__/
