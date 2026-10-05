@@ -14,6 +14,13 @@
             }
         } catch(e) {}
     })();
+
+    // Экранирование для вставки данных (из БД/таблицы/localStorage) через innerHTML
+    function escHtml(s) {
+        return String(s == null ? '' : s)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -290,7 +297,7 @@
                 }
                 container.innerHTML = recent.map(function(r) {
                     var active = r.path === window.location.pathname;
-                    return '<a href="' + r.path + '" onclick="toggleSidebar()" style="display:block;padding:7px 14px;border-radius:8px;color:' + (active ? 'var(--accent)' : 'var(--text2)') + ';text-decoration:none;font-size:0.83rem;transition:background 0.15s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + r.title + '</a>';
+                    return '<a href="' + escHtml(r.path) + '" onclick="toggleSidebar()" style="display:block;padding:7px 14px;border-radius:8px;color:' + (active ? 'var(--accent)' : 'var(--text2)') + ';text-decoration:none;font-size:0.83rem;transition:background 0.15s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escHtml(r.title) + '</a>';
                 }).join('');
             };
         })();
@@ -371,15 +378,15 @@
             function renderSuggestions(items) {
                 if (!items.length) { hideSuggest(); return; }
                 suggest.innerHTML = items.map((item, i) => `
-                    <a href="${item.url}" class="suggest-item" data-idx="${i}">
-                        <span class="suggest-model">${item.model}</span>
+                    <a href="${escHtml(item.url)}" class="suggest-item" data-idx="${i}">
+                        <span class="suggest-model">${escHtml(item.model)}</span>
                         <span class="suggest-meta">
-                            <span>${item.brand}</span>
+                            <span>${escHtml(item.brand)}</span>
                             <span style="opacity:0.4">·</span>
-                            <span>${item.launcher}</span>
+                            <span>${escHtml(item.launcher)}</span>
                             <span style="opacity:0.4">·</span>
-                            <span class="suggest-lot">${item.lot}</span>
-                            ${item.sw ? '<span style="opacity:0.4">·</span><span style="color:var(--text2);font-size:0.74rem;">💿 ' + item.sw + '</span>' : ''}
+                            <span class="suggest-lot">${escHtml(item.lot)}</span>
+                            ${item.sw ? '<span style="opacity:0.4">·</span><span style="color:var(--text2);font-size:0.74rem;">💿 ' + escHtml(item.sw) + '</span>' : ''}
                         </span>
                     </a>`).join('');
                 suggest.style.display = 'block';
@@ -443,16 +450,16 @@
             function renderSuggestions(items) {
                 if (!items.length) { hideSuggest(); return; }
                 suggest.innerHTML = items.map((item, i) => `
-                    <a href="${item.url}" class="suggest-item" data-idx="${i}">
-                        <span class="suggest-model">${item.model}</span>
+                    <a href="${escHtml(item.url)}" class="suggest-item" data-idx="${i}">
+                        <span class="suggest-model">${escHtml(item.model)}</span>
                         <span class="suggest-meta">
-                            <span>${item.brand}</span>
+                            <span>${escHtml(item.brand)}</span>
                             <span style="opacity:0.4">·</span>
-                            <span>${item.launcher}</span>
+                            <span>${escHtml(item.launcher)}</span>
                             <span style="opacity:0.4">·</span>
-                            <span class="suggest-lot">${item.lot}</span>
+                            <span class="suggest-lot">${escHtml(item.lot)}</span>
                             <span style="opacity:0.4">·</span>
-                            <span class="suggest-sw">${item.sw ? '💿 ' + item.sw : '<span style="opacity:0.45">Версия ПО не указана</span>'}</span>
+                            <span class="suggest-sw">${item.sw ? '💿 ' + escHtml(item.sw) : '<span style="opacity:0.45">Версия ПО не указана</span>'}</span>
                         </span>
                     </a>`).join('');
                 suggest.style.display = 'block';

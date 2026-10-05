@@ -600,9 +600,13 @@ def init_app(app):
     @app.route('/desktop-autologin')
     def desktop_autologin():
         from flask_login import login_user, current_user
-        from flask import redirect, url_for
+        from flask import redirect, url_for, abort
         import logging
         logger = logging.getLogger(__name__)
+        # Только локальный Flask внутри exe. На сервере эндпоинта как бы нет.
+        if not current_app.config.get('DESKTOP_MODE') or \
+                request.remote_addr not in ('127.0.0.1', '::1'):
+            abort(404)
         if current_user.is_authenticated:
             return redirect(url_for('index'))
         try:

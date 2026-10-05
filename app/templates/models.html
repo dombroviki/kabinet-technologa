@@ -511,11 +511,11 @@ function clearSearch() {
                 .then(items => {
                     if (!items.length) { suggest.style.display = 'none'; return; }
                     suggest.innerHTML = items.map(item =>
-                        '<a class="local-suggest-item" href="' + item.url + '">' +
-                            '<span class="lsi-model">' + item.model + '</span>' +
+                        '<a class="local-suggest-item" href="' + escHtml(item.url) + '">' +
+                            '<span class="lsi-model">' + escHtml(item.model) + '</span>' +
                             '<span class="lsi-meta">' +
-                                (item.lot ? '<span class="lot-chip" style="font-size:0.7rem;padding:1px 6px;">' + item.lot + '</span>' : '') +
-                                (item.sw  ? '<span style="color:var(--muted);font-size:0.75rem;">\u{1F4BF} ' + item.sw + '</span>' : '') +
+                                (item.lot ? '<span class="lot-chip" style="font-size:0.7rem;padding:1px 6px;">' + escHtml(item.lot) + '</span>' : '') +
+                                (item.sw  ? '<span style="color:var(--muted);font-size:0.75rem;">\u{1F4BF} ' + escHtml(item.sw) + '</span>' : '') +
                             '</span>' +
                         '</a>'
                     ).join('');
@@ -551,7 +551,7 @@ function clearSearch() {
 })();
 
 // ── ИНЛАЙН РЕДАКТИРОВАНИЕ ──
-const REMOTES = [{% for r in all_remotes %}"{{ r.name }}"{% if not loop.last %},{% endif %}{% endfor %}];
+const REMOTES = {{ all_remotes|map(attribute='name')|list|tojson }};
 
 document.addEventListener('click', function(e) {
     const cell = e.target.closest('.inline-edit');
@@ -600,20 +600,20 @@ document.addEventListener('click', function(e) {
         .then(r => r.json())
         .then(data => {
             if (data.ok) {
-                cell.innerHTML = val || '—';
+                cell.textContent = val || '—';
                 cell.classList.add('inline-saved');
                 setTimeout(() => cell.classList.remove('inline-saved'), 1000);
             } else {
-                cell.innerHTML = old || '—';
+                cell.textContent = old || '—';
             }
         })
-        .catch(() => { cell.innerHTML = old || '—'; });
+        .catch(() => { cell.textContent = old || '—'; });
     }
 
     input.addEventListener('blur', save);
     input.addEventListener('keydown', function(e) {
         if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
-        if (e.key === 'Escape') { cell.innerHTML = old || '—'; }
+        if (e.key === 'Escape') { cell.textContent = old || '—'; }
     });
 });
 </script>
@@ -781,21 +781,21 @@ document.addEventListener('click', function(e) {
 
     function buildCardHtml(m) {
         var tags = m.tags.map(function(t) {
-            return '<span class="tag-chip" style="--tag-color:' + t.color + '; margin-right:6px;">' + t.name + '</span>';
+            return '<span class="tag-chip" style="--tag-color:' + escHtml(t.color) + '; margin-right:6px;">' + escHtml(t.name) + '</span>';
         }).join('');
         var flash = m.is_flashable ? '<span class="flash-pill yes">⚡ Прошивается</span>' : '<span class="flash-pill no">✕ Не прошивается</span>';
         return '<div class="model-card" id="card-' + m.id + '">' +
             '<div class="model-card-row" data-id="' + m.id + '" data-view-url="/view/' + m.id + '" onclick="toggleCard(this.dataset.id)" ondblclick="window.location.href=this.dataset.viewUrl">' +
-            '<div class="model-card-main"><span class="model-dot"></span><span class="model-card-name">' + m.model + '</span></div>' +
-            '<div class="model-card-meta">' + tags + (m.software_version !== '—' ? '<span class="model-card-sw">💿 ' + m.software_version + '</span>' : '') + flash + '<span class="lot-chip">' + m.lot + '</span></div>' +
+            '<div class="model-card-main"><span class="model-dot"></span><span class="model-card-name">' + escHtml(m.model) + '</span></div>' +
+            '<div class="model-card-meta">' + tags + (m.software_version !== '—' ? '<span class="model-card-sw">💿 ' + escHtml(m.software_version) + '</span>' : '') + flash + '<span class="lot-chip">' + escHtml(m.lot) + '</span></div>' +
             '<div class="model-card-chevron" id="chevron-' + m.id + '">›</div></div>' +
             '<div class="model-card-panel" id="panel-' + m.id + '"><div class="model-card-details">' +
-            '<div class="mcd-item"><span class="mcd-label">Пульт</span><span class="mcd-value">' + m.remote + '</span></div>' +
-            '<div class="mcd-item"><span class="mcd-label">Тестировщик</span><span class="mcd-value">' + m.tester_name + '</span></div>' +
-            '<div class="mcd-item"><span class="mcd-label">Версия ПО</span><span class="mcd-value">' + m.software_version + '</span></div>' +
-            '<div class="mcd-item"><span class="mcd-label">Лот</span><span class="mcd-value">' + m.lot + '</span></div>' +
-            '<div class="mcd-item"><span class="mcd-label">Добавлено</span><span class="mcd-value">' + m.date_added + '</span></div>' +
-            (m.specifications ? '<div class="mcd-item mcd-full"><span class="mcd-label">Характеристики</span><span class="mcd-value" style="white-space:pre-line;">' + m.specifications + '</span></div>' : '') +
+            '<div class="mcd-item"><span class="mcd-label">Пульт</span><span class="mcd-value">' + escHtml(m.remote) + '</span></div>' +
+            '<div class="mcd-item"><span class="mcd-label">Тестировщик</span><span class="mcd-value">' + escHtml(m.tester_name) + '</span></div>' +
+            '<div class="mcd-item"><span class="mcd-label">Версия ПО</span><span class="mcd-value">' + escHtml(m.software_version) + '</span></div>' +
+            '<div class="mcd-item"><span class="mcd-label">Лот</span><span class="mcd-value">' + escHtml(m.lot) + '</span></div>' +
+            '<div class="mcd-item"><span class="mcd-label">Добавлено</span><span class="mcd-value">' + escHtml(m.date_added) + '</span></div>' +
+            (m.specifications ? '<div class="mcd-item mcd-full"><span class="mcd-label">Характеристики</span><span class="mcd-value" style="white-space:pre-line;">' + escHtml(m.specifications) + '</span></div>' : '') +
             '</div><div class="model-card-actions">' +
             '<a href="/view/' + m.id + '" class="btn btn-secondary btn-sm">👁 Просмотр</a>' +
             '</div></div></div>';
@@ -804,12 +804,12 @@ document.addEventListener('click', function(e) {
     function buildTableRow(m) {
         var flash = m.is_flashable ? '<span class="r-flash">⚡</span>' : '';
         return '<tr ondblclick="window.location.href=\'/view/' + m.id + '\'">' +
-            '<td><div style="display:flex;align-items:center;gap:8px;"><span class="model-dot"></span><span style="font-weight:600;">' + m.model + '</span>' + flash + '</div></td>' +
-            '<td><span class="lot-chip">' + m.lot + '</span></td>' +
-            '<td class="r-sw">' + m.software_version + '</td>' +
-            '<td style="color:var(--text2);font-size:0.85rem;">' + m.remote + '</td>' +
-            '<td>' + (m.tester_name !== '—' ? '<span class="tester-mini">' + m.tester_name + '</span>' : '<span style="color:var(--muted);">—</span>') + '</td>' +
-            '<td class="date-text">' + m.date_added + '</td>' +
+            '<td><div style="display:flex;align-items:center;gap:8px;"><span class="model-dot"></span><span style="font-weight:600;">' + escHtml(m.model) + '</span>' + flash + '</div></td>' +
+            '<td><span class="lot-chip">' + escHtml(m.lot) + '</span></td>' +
+            '<td class="r-sw">' + escHtml(m.software_version) + '</td>' +
+            '<td style="color:var(--text2);font-size:0.85rem;">' + escHtml(m.remote) + '</td>' +
+            '<td>' + (m.tester_name !== '—' ? '<span class="tester-mini">' + escHtml(m.tester_name) + '</span>' : '<span style="color:var(--muted);">—</span>') + '</td>' +
+            '<td class="date-text">' + escHtml(m.date_added) + '</td>' +
             '<td><a href="/view/' + m.id + '" class="btn btn-secondary btn-sm">👁</a></td>' +
             '</tr>';
     }

@@ -597,11 +597,11 @@
             div.id = `comment-${data.id}`;
             div.innerHTML = `
                 <div class="comment-meta">
-                    <span class="comment-user">${data.user}</span>
-                    <span class="comment-time">${data.time}</span>
+                    <span class="comment-user">${escHtml(data.user)}</span>
+                    <span class="comment-time">${escHtml(data.time)}</span>
                     <button class="comment-delete-btn" onclick="deleteComment(${data.id})">✕</button>
                 </div>
-                <div class="comment-text">${data.text.replace(/\n/g, '<br>')}</div>
+                <div class="comment-text">${escHtml(data.text).replace(/\n/g, '<br>')}</div>
             `;
             list.appendChild(div);
             input.value = '';

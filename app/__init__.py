@@ -15,6 +15,10 @@ def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
 
+    # Явный флаг десктопа (ставит desktop.py). Не выводим из отсутствия RENDER:
+    # иначе локальный запуск run.py или любой другой хостинг считался бы десктопом.
+    app.config['DESKTOP_MODE'] = os.environ.get('KT_DESKTOP') == '1'
+
     # Серверные сессии только для десктопа
     if app.config.get('SESSION_TYPE') == 'filesystem':
         os.makedirs(app.config['SESSION_FILE_DIR'], exist_ok=True)

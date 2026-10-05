@@ -44,22 +44,25 @@ def login():
             db.session.commit()
         except Exception:
             pass
-        try:
-            import os, json, hashlib, base64, platform
-            from cryptography.fernet import Fernet
-            home = os.environ.get('APPDATA') or os.environ.get('USERPROFILE') or os.path.expanduser('~')
-            creds_dir = os.path.join(home, 'KabinetTechnologa')
-            os.makedirs(creds_dir, exist_ok=True)
-            fingerprint = f"{platform.node()}:{os.environ.get('USERNAME') or os.environ.get('USER') or 'user'}"
-            key = base64.urlsafe_b64encode(hashlib.sha256(fingerprint.encode()).digest())
-            f = Fernet(key)
-            data = json.dumps({'email': email, 'password': password}).encode()
-            creds_path = os.path.join(creds_dir, 'creds')
-            with open(creds_path, 'wb') as fp:
-                fp.write(f.encrypt(data))
-            print(f'CREDS SAVED: {creds_path}')
-        except Exception as e:
-            print(f'CREDS ERROR: {e}')
+        # Креды для автологина храним только в десктопе. На сервере этот файл
+        # читался бы /desktop-autologin'ом и пускал любого под последним юзером.
+        if current_app.config.get('DESKTOP_MODE'):
+            try:
+                import os, json, hashlib, base64, platform
+                from cryptography.fernet import Fernet
+                home = os.environ.get('APPDATA') or os.environ.get('USERPROFILE') or os.path.expanduser('~')
+                creds_dir = os.path.join(home, 'KabinetTechnologa')
+                os.makedirs(creds_dir, exist_ok=True)
+                fingerprint = f"{platform.node()}:{os.environ.get('USERNAME') or os.environ.get('USER') or 'user'}"
+                key = base64.urlsafe_b64encode(hashlib.sha256(fingerprint.encode()).digest())
+                f = Fernet(key)
+                data = json.dumps({'email': email, 'password': password}).encode()
+                creds_path = os.path.join(creds_dir, 'creds')
+                with open(creds_path, 'wb') as fp:
+                    fp.write(f.encrypt(data))
+                print(f'CREDS SAVED: {creds_path}')
+            except Exception as e:
+                print(f'CREDS ERROR: {e}')
         next_page = request.args.get('next')
         return redirect(next_page or url_for('index'))
 

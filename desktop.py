@@ -23,6 +23,8 @@ CHECK_UPDATE_URL = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 # Десктопу не нужен create_all (таблицы есть в проде). Пропускаем — иначе каждый
 # старт лишний раз дёргает Neon, а при мёртвой БД приложение крашится на запуске.
 os.environ['KT_SKIP_DB_INIT'] = '1'
+# Включает сохранение кредов и /desktop-autologin — только в exe, не на сервере
+os.environ['KT_DESKTOP'] = '1'
 app = create_app()
 
 def start_flask():
