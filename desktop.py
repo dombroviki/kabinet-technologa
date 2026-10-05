@@ -13,7 +13,7 @@ CHECK_UPDATE_URL = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 
 # Десктоп — окно над веб-версией на Render. Своего сервера, БД и секретов в exe
 # нет: всё (данные, файлы, вход) живёт на сервере, как и у браузерных юзеров.
-SERVER_URL = os.environ.get('KT_SERVER_URL', 'https://TODO.onrender.com').rstrip('/')
+SERVER_URL = os.environ.get('KT_SERVER_URL', 'https://kabinet-technologa.onrender.com').rstrip('/')
 
 # Здесь WebView2 хранит куки — по ним вход переживает перезапуск приложения
 DATA_DIR = os.path.join(os.path.expanduser('~'), '.kabinet_technologa')
