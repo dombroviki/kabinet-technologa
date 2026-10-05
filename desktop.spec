@@ -4,45 +4,34 @@ from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
 block_cipher = None
 
-# Собираем все данные приложения
-added_files = [
-    ('app/templates', 'app/templates'),
-    ('app/static', 'app/static'),
-    ('config.py', '.'),
-    ('version.py', '.'),
-    ('creds.py', '.'),
-]
-
+# Десктоп — окно над сервером (см. SERVER_URL в desktop.py): ни шаблонов, ни Flask,
+# ни секретов в сборке не нужно.
 a = Analysis(
     ['desktop.py'],
     pathex=['.'],
     binaries=[],
-    datas=added_files,
+    datas=[],
     hiddenimports=[
-        'secrets_local',
         'webview',
         'webview.platforms.winforms',
+        'webview.platforms.edgechromium',
         'clr',
-        'flask',
-        'flask_login',
-        'flask_sqlalchemy',
-        'flask_wtf',
-        'sqlalchemy',
-        'psycopg2',
-        'openpyxl',
-        'gspread',
-        'google.oauth2',
-        'google.auth',
         'requests',
-        'email_validator',
+        'pystray',
+        'pystray._win32',
+        'PIL.Image',
+        'PIL.ImageDraw',
         'tkinter',
         'tkinter.font',
+        'tkinter.messagebox',
         '_tkinter',
     ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    # Страховка: серверный код и секреты не должны попасть в exe, даже если
+    # кто-то случайно их импортирует
+    excludes=['app', 'config', 'secrets_local', 'creds', 'flask', 'sqlalchemy', 'psycopg2'],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=block_cipher,

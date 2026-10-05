@@ -46,7 +46,9 @@ Set-Content installer.iss -Value $iss -NoNewline -Encoding UTF8
 
 # 2. Git: commit + push (Render redeploys on push). Tolerate "nothing to commit" on re-runs.
 Step "Git push"
-git add -A
+# -u: only already-tracked files. The repo is public -- new files must be added by hand,
+# so stray notes/secrets/dumps never get pushed by a release run.
+git add -u
 git commit -m "v$Ver`: $Notes"
 if ($LASTEXITCODE -ne 0) { Write-Host "Nothing new to commit -- continuing." -ForegroundColor Yellow }
 git push

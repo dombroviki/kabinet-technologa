@@ -15,16 +15,6 @@ def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
 
-    # Явный флаг десктопа (ставит desktop.py). Не выводим из отсутствия RENDER:
-    # иначе локальный запуск run.py или любой другой хостинг считался бы десктопом.
-    app.config['DESKTOP_MODE'] = os.environ.get('KT_DESKTOP') == '1'
-
-    # Серверные сессии только для десктопа
-    if app.config.get('SESSION_TYPE') == 'filesystem':
-        os.makedirs(app.config['SESSION_FILE_DIR'], exist_ok=True)
-        from flask_session import Session
-        Session(app)
-
     db.init_app(app)
     csrf.init_app(app)
     compress.init_app(app)
@@ -83,8 +73,8 @@ def create_app(config_class=Config):
         db.session.remove()
 
     # Создаём таблицы если их нет.
-    # На десктопе пропускаем (KT_SKIP_DB_INIT) — таблицы уже есть в проде, а
-    # create_all на каждом старте лишний раз будит Neon. И оборачиваем в try:
+    # Можно пропустить через KT_SKIP_DB_INIT — create_all на старте лишний раз
+    # будит Neon, а таблицы в проде уже есть. И оборачиваем в try:
     # если БД недоступна (квота/обрыв) — приложение всё равно поднимается и
     # отдаёт страницу offline вместо краша с трейсбеком.
     if not os.environ.get('KT_SKIP_DB_INIT'):

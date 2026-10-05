@@ -30,6 +30,11 @@ Name: "russian"; MessagesFile: "compiler:Languages\Russian.isl"
 [Tasks]
 Name: "desktopicon"; Description: "Создать ярлык на рабочем столе"; GroupDescription: "Дополнительные параметры:"
 
+[InstallDelete]
+; Версии ≤1.8 тащили в _internal весь Flask, шаблоны и т.п. — чистим перед установкой,
+; чтобы при обновлении не оставался мусор от старой сборки
+Type: filesandordirs; Name: "{app}\_internal"
+
 [Files]
 Source: "dist\{#MyAppDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; Bootstrapper WebView2 — ставится только если рантайма ещё нет

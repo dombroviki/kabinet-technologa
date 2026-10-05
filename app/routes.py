@@ -597,39 +597,11 @@ def init_app(app):
         flash('Прошивка удалена', 'success')
         return redirect(url_for('view_model', id=model_id))
 
-    @app.route('/desktop-autologin')
-    def desktop_autologin():
-        from flask_login import login_user, current_user
-        from flask import redirect, url_for, abort
-        import logging
-        logger = logging.getLogger(__name__)
-        # Только локальный Flask внутри exe. На сервере эндпоинта как бы нет.
-        if not current_app.config.get('DESKTOP_MODE') or \
-                request.remote_addr not in ('127.0.0.1', '::1'):
-            abort(404)
-        if current_user.is_authenticated:
-            return redirect(url_for('index'))
-        try:
-            import os, json, hashlib, base64, platform
-            from cryptography.fernet import Fernet
-            home = os.environ.get('APPDATA') or os.environ.get('USERPROFILE') or os.path.expanduser('~')
-            creds_file = os.path.join(home, 'KabinetTechnologa', 'creds')
-            logger.warning(f'AUTOLOGIN: creds_file={creds_file}, exists={os.path.exists(creds_file)}')
-            if os.path.exists(creds_file):
-                fingerprint = f"{platform.node()}:{os.environ.get('USERNAME') or os.environ.get('USER') or 'user'}"
-                key = base64.urlsafe_b64encode(hashlib.sha256(fingerprint.encode()).digest())
-                f = Fernet(key)
-                with open(creds_file, 'rb') as fp:
-                    data = json.loads(f.decrypt(fp.read()).decode())
-                user = User.query.filter_by(email=data['email'].lower()).first()
-                logger.warning(f'AUTOLOGIN: user={user}, email={data["email"]}')
-                if user and user.check_password(data['password']) and user.is_active_user:
-                    login_user(user, remember=True)
-                    logger.warning('AUTOLOGIN: success')
-                    return redirect(url_for('index'))
-        except Exception as e:
-            logger.warning(f'AUTOLOGIN error: {e}')
-        return redirect(url_for('auth.login'))
+    @app.route('/healthz')
+    def healthz():
+        # Десктоп пингует при старте, чтобы разбудить Render. Без логина и без БД —
+        # не будит Neon.
+        return 'ok', 200, {'Content-Type': 'text/plain', 'Cache-Control': 'no-store'}
 
     @app.route('/api/import-status')
     @login_required

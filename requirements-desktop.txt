@@ -1,0 +1,6 @@
+# Зависимости для сборки десктопа (exe). Серверные — в requirements.txt.
+pywebview==6.2.1
+pystray==0.19.5
+Pillow==12.2.0
+requests==2.31.0
+pyinstaller==6.20.0

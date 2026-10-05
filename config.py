@@ -1,7 +1,8 @@
 import os
 
-# Секреты: env (Render dashboard + локальный .env) → secrets_local (бандлится в exe)
-# → дефолт. secrets_local.py в .gitignore и в публичный репо не попадает.
+# Секреты: env (Render dashboard + локальный .env) → secrets_local (для локальной
+# разработки) → дефолт. secrets_local.py в .gitignore; в exe он больше не попадает —
+# десктоп работает через сервер и секретов не содержит.
 try:
     import secrets_local as _local
 except ImportError:
@@ -19,8 +20,7 @@ def _secret(name, default=None):
     return default
 
 
-# Определяем режим — десктоп (exe) или сервер (Render)
-_IS_DESKTOP = not os.environ.get('RENDER')
+_ON_RENDER = bool(os.environ.get('RENDER'))
 
 class Config:
     # Если ключ нигде не задан — генерим временный (сессии слетят при рестарте)
@@ -41,16 +41,11 @@ class Config:
     }
 
     REMEMBER_COOKIE_DURATION = 60 * 60 * 24 * 30  # 30 дней
-    REMEMBER_COOKIE_SECURE = False
     REMEMBER_COOKIE_HTTPONLY = True
+    # На Render всё по https — куки входа не уходят по http. Локально (http) — можно.
+    REMEMBER_COOKIE_SECURE = _ON_RENDER
+    SESSION_COOKIE_SECURE = _ON_RENDER
 
-    # Серверные сессии для десктопа (куки webview не сохраняются)
-    if _IS_DESKTOP:
-        SESSION_TYPE = 'filesystem'
-        SESSION_FILE_DIR = os.path.join(os.path.expanduser('~'), '.kabinet_technologa', 'sessions')
-        SESSION_PERMANENT = True
-        PERMANENT_SESSION_LIFETIME = 60 * 60 * 24 * 30  # 30 дней
-        SESSION_FILE_THRESHOLD = 100
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     UPLOAD_FOLDER = os.path.join(BASE_DIR, 'app', 'static', 'uploads')
     MAX_CONTENT_LENGTH = 2 * 1024 * 1024 * 1024

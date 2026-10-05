@@ -1,44 +1,59 @@
 import os
 import sys
-from dotenv import load_dotenv
-load_dotenv()
-
-# Добавляем корень проекта в путь чтобы creds.py был доступен
-_root = os.path.dirname(os.path.abspath(__file__))
-if _root not in sys.path:
-    sys.path.insert(0, _root)
-
+import shutil
 import threading
 import time
-import socket
 import tkinter as tk
 import requests as req_lib
 import webview
-from app import create_app
 from version import __version__
 
 GITHUB_REPO = "dombroviki/kabinet-technologa"
 CHECK_UPDATE_URL = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 
-# Десктопу не нужен create_all (таблицы есть в проде). Пропускаем — иначе каждый
-# старт лишний раз дёргает Neon, а при мёртвой БД приложение крашится на запуске.
-os.environ['KT_SKIP_DB_INIT'] = '1'
-# Включает сохранение кредов и /desktop-autologin — только в exe, не на сервере
-os.environ['KT_DESKTOP'] = '1'
-app = create_app()
+# Десктоп — окно над веб-версией на Render. Своего сервера, БД и секретов в exe
+# нет: всё (данные, файлы, вход) живёт на сервере, как и у браузерных юзеров.
+SERVER_URL = os.environ.get('KT_SERVER_URL', 'https://TODO.onrender.com').rstrip('/')
 
-def start_flask():
-    app.run(port=5000, debug=False, use_reloader=False)
+# Здесь WebView2 хранит куки — по ним вход переживает перезапуск приложения
+DATA_DIR = os.path.join(os.path.expanduser('~'), '.kabinet_technologa')
 
-def wait_for_flask(host='127.0.0.1', port=5000, timeout=30):
+# Все созданные tk.Tk держим до выхода. Иначе закрытое окно (оно в цикле ссылок
+# через свои колбэки) соберёт GC из потока webview/трея → Tcl_AsyncDelete и краш.
+_tk_roots = []
+
+
+def wait_for_server(timeout=90):
+    """Ждёт ответа сервера. Render после простоя просыпается до минуты."""
     start = time.time()
     while time.time() - start < timeout:
         try:
-            with socket.create_connection((host, port), timeout=1):
+            if req_lib.get(f'{SERVER_URL}/healthz', timeout=30).ok:
                 return True
-        except OSError:
-            time.sleep(0.1)
+        except Exception:
+            pass
+        time.sleep(1)
     return False
+
+
+def cleanup_legacy():
+    """Удаляет то, что оставили версии с локальным сервером (≤1.8):
+    сохранённый пароль для автологина и файловые сессии Flask."""
+    home = os.environ.get('APPDATA') or os.environ.get('USERPROFILE') or os.path.expanduser('~')
+    try:
+        os.remove(os.path.join(home, 'KabinetTechnologa', 'creds'))
+    except OSError:
+        pass
+    shutil.rmtree(os.path.join(DATA_DIR, 'sessions'), ignore_errors=True)
+
+
+def acquire_single_instance():
+    """Именованный мьютекс Windows. Возвращает (handle, уже_запущено).
+    Handle держим до выхода — пока он жив, второй экземпляр видит мьютекс."""
+    import ctypes
+    handle = ctypes.windll.kernel32.CreateMutexW(None, False, 'Local\\KabinetTechnologa')
+    ERROR_ALREADY_EXISTS = 183
+    return handle, ctypes.windll.kernel32.GetLastError() == ERROR_ALREADY_EXISTS
 
 def check_for_updates():
     """Проверяет GitHub Releases. Возвращает (latest_version, download_url) или None."""
@@ -67,6 +82,7 @@ def version_tuple(v):
 def show_update_dialog(latest_version, download_url):
     """Диалог с прогрессом скачивания и авто-запуском установщика."""
     root = tk.Tk()
+    _tk_roots.append(root)
     root.title("Доступно обновление")
     root.configure(bg='#0e1120')
     root.resizable(False, False)
@@ -254,6 +270,7 @@ def start_tray():
 
 def show_splash():
     root = tk.Tk()
+    _tk_roots.append(root)
     root.overrideredirect(True)
     root.configure(bg='#0e1120')
     root.attributes('-topmost', True)
@@ -269,8 +286,9 @@ def show_splash():
              bg='#0e1120', fg='#f8faff').pack()
     tk.Label(root, text=f'v{__version__}', font=('Segoe UI', 10),
              bg='#0e1120', fg='#60a5fa').pack(pady=(4, 0))
-    tk.Label(root, text='Запуск...', font=('Segoe UI', 10),
-             bg='#0e1120', fg='#7280a8').pack(pady=(4, 0))
+    status_label = tk.Label(root, text='Подключение к серверу...', font=('Segoe UI', 10),
+                            bg='#0e1120', fg='#7280a8')
+    status_label.pack(pady=(4, 0))
 
     dots_label = tk.Label(root, text='●○○', font=('Segoe UI', 12),
                           bg='#0e1120', fg='#60a5fa')
@@ -285,48 +303,61 @@ def show_splash():
         root.after(300, animate)
 
     animate()
-    return root
+    return root, status_label
+
+
+def run_splash():
+    """Показывает заставку, пока сервер не ответит. Возвращает True, если ответил."""
+    splash, status_label = show_splash()
+    state = {'done': False, 'online': False}
+    started = time.time()
+
+    def wait():
+        state['online'] = wait_for_server()
+        elapsed = time.time() - started
+        if elapsed < 1.5:
+            time.sleep(1.5 - elapsed)
+        state['done'] = True
+
+    # Tk трогаем только из главного треда: фоновый тред лишь ставит флаг
+    def tick():
+        if state['done']:
+            splash.destroy()
+            return
+        if time.time() - started > 5:
+            status_label.config(text='Сервер просыпается, это может занять до минуты...')
+        splash.after(200, tick)
+
+    threading.Thread(target=wait, daemon=True).start()
+    tick()
+    splash.mainloop()
+    return state['online']
+
 
 if __name__ == '__main__':
-    import platform
+    import tkinter.messagebox as mb
 
     # ── SINGLE INSTANCE ──────────────────────────────────────────────────────
-    # Если Flask уже слушает порт 5000 — приложение уже запущено
-    _already_running = False
-    try:
-        with socket.create_connection(('127.0.0.1', 5000), timeout=0.5):
-            _already_running = True
-    except OSError:
-        pass
-
+    _mutex, _already_running = acquire_single_instance()
     if _already_running:
-        # Просто показываем уведомление и выходим
         _root = tk.Tk()
         _root.withdraw()
-        import tkinter.messagebox as mb
         mb.showinfo('Кабинет технолога', 'Приложение уже запущено.\nПроверьте системный трей.')
         _root.destroy()
         sys.exit(0)
     # ─────────────────────────────────────────────────────────────────────────
 
-    print(f"HOME: {os.path.expanduser('~')}")
-    print(f"USERNAME: {os.environ.get('USERNAME')}")
-    print(f"NODE: {platform.node()}")
-    t = threading.Thread(target=start_flask, daemon=True)
-    t.start()
+    cleanup_legacy()
 
-    splash = show_splash()
-
-    def wait_and_close():
-        start = time.time()
-        wait_for_flask()
-        elapsed = time.time() - start
-        if elapsed < 1.5:
-            time.sleep(1.5 - elapsed)
-        splash.after(0, splash.destroy)
-
-    threading.Thread(target=wait_and_close, daemon=True).start()
-    splash.mainloop()
+    while not run_splash():
+        _root = tk.Tk()
+        _root.withdraw()
+        retry = mb.askretrycancel(
+            'Кабинет технолога',
+            'Нет связи с сервером.\nПроверьте интернет и попробуйте ещё раз.')
+        _root.destroy()
+        if not retry:
+            sys.exit(0)
 
     # Проверка обновлений до запуска webview (tkinter требует главный тред)
     result = check_for_updates()
@@ -338,9 +369,12 @@ if __name__ == '__main__':
         except Exception:
             pass
 
+    # Прошивки и CSV-экспорт отдаются как вложения — без этого pywebview их блокирует
+    webview.settings['ALLOW_DOWNLOADS'] = True
+
     webview_window = webview.create_window(
         f'Кабинет технолога v{__version__}',
-        'http://127.0.0.1:5000/desktop-autologin',
+        f'{SERVER_URL}/',
         width=1400,
         height=900,
         min_size=(800, 600),
@@ -358,11 +392,12 @@ if __name__ == '__main__':
     webview_window.events.closing += on_closing
     threading.Thread(target=start_tray, daemon=True).start()
 
-    storage = os.path.join(os.path.expanduser('~'), '.kabinet_technologa')
     try:
         # Принудительно EdgeChromium (WebView2). Без явного движка pywebview молча
         # откатывается на IE/MSHTML, который не понимает CSS-переменные → стили слетают.
-        webview.start(gui='edgechromium', storage_path=storage)
+        # private_mode=False — куки сохраняются в DATA_DIR, вход не слетает при
+        # перезапуске (по умолчанию pywebview работает как инкогнито).
+        webview.start(gui='edgechromium', private_mode=False, storage_path=DATA_DIR)
     except Exception as e:
         import tkinter.messagebox as mb
         _r = tk.Tk()
