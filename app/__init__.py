@@ -52,10 +52,17 @@ def create_app(config_class=Config):
     app.register_blueprint(admin_bp, url_prefix='/admin')
 
     # ── Вылет деактивированного пользователя при каждом запросе ──
+    # Эти запросы не должны ходить в БД: статика и частый поллинг открытых вкладок.
+    # current_user = запрос юзера в Neon, и любая открытая вкладка не давала ему уснуть.
+    _NO_DB_ENDPOINTS = {'static', 'service_worker', 'healthz', 'import_status', 'import_progress'}
+
     @app.before_request
     def check_user_active():
+        from flask import request
         from flask_login import current_user, logout_user
         from flask import redirect, url_for, flash
+        if request.endpoint in _NO_DB_ENDPOINTS:
+            return
         # Сбрасываем грязную сессию перед каждым запросом
         try:
             db.session.rollback()

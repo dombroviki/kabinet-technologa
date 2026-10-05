@@ -51,6 +51,18 @@ def editor_required(f):
         return f(*args, **kwargs)
     return decorated
 
+def session_required(f):
+    """Вход без похода в БД — для частого поллинга. Подпись куки сессии проверяется
+    по SECRET_KEY; @login_required же грузит юзера из Neon на каждый запрос."""
+    from functools import wraps
+    from flask import session, jsonify
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get('_user_id'):
+            return jsonify({'ok': False, 'error': 'unauthorized'}), 401
+        return f(*args, **kwargs)
+    return decorated
+
 def init_app(app):
 
     from datetime import timedelta
@@ -595,7 +607,7 @@ def init_app(app):
         return 'ok', 200, {'Content-Type': 'text/plain', 'Cache-Control': 'no-store'}
 
     @app.route('/api/import-status')
-    @login_required
+    @session_required
     def import_status():
         from flask import jsonify
         from datetime import datetime, timezone
@@ -606,7 +618,7 @@ def init_app(app):
         return jsonify({'ok': False})
 
     @app.route('/api/import-progress')
-    @login_required
+    @session_required
     def import_progress():
         from flask import jsonify
         return jsonify({
